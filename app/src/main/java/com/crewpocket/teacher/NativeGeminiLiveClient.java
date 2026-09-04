@@ -457,19 +457,19 @@ public class NativeGeminiLiveClient {
                     + "3. Encourage the student warmly whenever they try speaking.\n"
                     + "4. When the student says goodbye or wants to exit, say a warm farewell and call 'end_voice_session'.";
         } else {
-            // 雙語對照模式（預設推薦）：純外語語音發音 + 螢幕字幕中文即時對照（耳聽純外語，眼看中文字幕）
-            modeInstruction = "【Teaching Mode: PURE SPOKEN TARGET LANGUAGE (純外語發音口說模式)】\n"
-                    + "CRITICAL SPOKEN AUDIO RULE: You MUST speak EXCLUSIVELY in 100% pure, natural, fluent " + langName + " (絕對嚴禁在語音中說出中文！)\n"
-                    + "The student wants to train listening to pure " + langName + ". Translations are provided on screen visually.\n"
-                    + "NEVER pronounce, read, or speak any Chinese words out loud in audio.\n"
-                    + "Example spoken response:\n"
-                    + "'I really love spending my weekends hiking in the mountains. How about you? What do you usually like to do on weekends?'";
-            rules = "CRITICAL CONVERSATIONAL RULES:\n"
-                    + "1. 100% PURE " + langName + " IN AUDIO: Speak entirely in natural " + langName + " with standard pronunciation.\n"
-                    + "2. Keep spoken responses natural and concise (1-2 sentences in " + langName + ").\n"
-                    + "3. Always end your turn with a clear, open-ended question in " + langName + " so the student has an easy cue to reply in " + langName + ".\n"
-                    + "4. ACTIVE RECAST: If the student makes grammatical or vocabulary mistakes, naturally model the polished native expression in " + langName + ".\n"
-                    + "5. When the student says goodbye or wants to exit, say a warm farewell in " + langName + " and call 'end_voice_session'.";
+            // 雙語對照模式（預設推薦）：外語說完後，立即在語音中附帶親切的母語 (中文/英文) 解說翻譯，並在螢幕上呈現雙語對照
+            modeInstruction = "【Teaching Mode: BILINGUAL SCAFFOLDING & EXPLANATION (雙語口說對照教學模式)】\n"
+                    + "SPOKEN AUDIO INSTRUCTION (Mandatory):\n"
+                    + "1. Speak your primary conversational sentence or question in authentic native " + langName + " first.\n"
+                    + "2. IMMEDIATELY follow up in the SAME spoken turn with a clear, friendly spoken translation and explanation in " + nativeLang + " so the student fully understands what was said.\n"
+                    + "Example spoken response pattern:\n"
+                    + "\"" + (langName.contains("Japanese") ? "今日はどんな一日でしたか？ (今天過得怎麼樣呢？)" : "What are your plans for the upcoming weekend? (你這個週末有什麼特別的計畫嗎？)") + "\"";
+            rules = "CRITICAL BILINGUAL RULES:\n"
+                    + "1. DUAL-LANGUAGE SPOKEN AUDIO: Every turn MUST contain both the clear target language sentence (" + langName + ") AND its natural native explanation (" + nativeLang + ").\n"
+                    + "2. Keep both parts natural, concise, and easy to follow.\n"
+                    + "3. Ask an engaging question at the end of your turn (providing both " + langName + " and " + nativeLang + ") to guide the student's reply.\n"
+                    + "4. ACTIVE RECAST: If the student speaks with errors or struggles, gently explain the correct phrasing in " + nativeLang + " and demonstrate the proper expression in " + langName + ".\n"
+                    + "5. When the student says goodbye or wants to exit, say a warm farewell in both languages and call 'end_voice_session'.";
         }
 
         String baseInstruction = "You are 'Crew Teacher', an insightful, precise, and rigorous 1-on-1 language coach. "
@@ -487,6 +487,13 @@ public class NativeGeminiLiveClient {
         return root.toString();
     }
 
+    private static final String[] TRANSLATION_MODELS = {
+            "gemini-3.6-flash",
+            "gemini-2.5-flash",
+            "gemini-2.0-flash",
+            "gemini-1.5-flash"
+    };
+
     private void translateAsync(final String sourceText) {
         if (apiKey == null || apiKey.isEmpty() || sourceText.isEmpty()) return;
         boolean isUiEn = I18n.isEnglish(context);
@@ -496,18 +503,33 @@ public class NativeGeminiLiveClient {
         }
         final String prompt = "Translate the following spoken sentence into natural, fluent " + targetLang + ".\n"
                 + "Output ONLY the direct translation text with no markdown formatting, no explanations, and no quotes:\n\n" + sourceText;
+        tryTranslateAt(0, prompt);
+    }
+
+    private void tryTranslateAt(final int modelIdx, final String prompt) {
+        if (modelIdx >= TRANSLATION_MODELS.length) {
+            Log.e(TAG, "All translation models failed for prompt");
+            return;
+        }
+        final String model = TRANSLATION_MODELS[modelIdx];
         try {
             JSONObject root = new JSONObject();
             JSONArray parts = new JSONArray().put(new JSONObject().put("text", prompt));
             JSONArray contents = new JSONArray().put(new JSONObject().put("parts", parts));
             root.put("contents", contents);
 
-            String url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=" + apiKey;
+            JSONObject genConfig = new JSONObject();
+            genConfig.put("temperature", 0.3);
+            genConfig.put("maxOutputTokens", 300);
+            root.put("generationConfig", genConfig);
+
+            String url = "https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent?key=" + apiKey;
             RequestBody body = RequestBody.create(MediaType.parse("application/json; charset=utf-8"), root.toString());
             Request req = new Request.Builder().url(url).post(body).build();
             httpClient.newCall(req).enqueue(new okhttp3.Callback() {
                 @Override public void onFailure(okhttp3.Call call, java.io.IOException e) {
-                    Log.e(TAG, "Translation request failed: " + e.getMessage());
+                    Log.w(TAG, "Translation model " + model + " failed: " + e.getMessage());
+                    tryTranslateAt(modelIdx + 1, prompt);
                 }
                 @Override public void onResponse(okhttp3.Call call, Response response) throws java.io.IOException {
                     try {
@@ -521,21 +543,28 @@ public class NativeGeminiLiveClient {
                                     JSONArray resParts = content.optJSONArray("parts");
                                     if (resParts != null && resParts.length() > 0) {
                                         String translation = resParts.getJSONObject(0).optString("text", "").trim();
+                                        if (translation.startsWith("\"") && translation.endsWith("\"") && translation.length() > 2) {
+                                            translation = translation.substring(1, translation.length() - 1).trim();
+                                        }
                                         if (!translation.isEmpty()) {
                                             listener.onTranscript(translation, "translation");
+                                            return;
                                         }
                                     }
                                 }
                             }
-                        } else {
-                            Log.e(TAG, "Translation HTTP error: " + response.code() + " " + response.message());
                         }
+                        Log.w(TAG, "Translation model " + model + " returned code " + response.code());
                     } catch (Exception e) {
-                        Log.e(TAG, "Translation parse error: " + e.getMessage());
+                        Log.w(TAG, "Translation parse error for " + model + ": " + e.getMessage());
                     }
+                    tryTranslateAt(modelIdx + 1, prompt);
                 }
             });
-        } catch (Exception ignored) {}
+        } catch (Exception e) {
+            Log.e(TAG, "tryTranslateAt error: " + e.getMessage());
+            tryTranslateAt(modelIdx + 1, prompt);
+        }
     }
 
     private static String getLanguageDisplayName(String code) {
