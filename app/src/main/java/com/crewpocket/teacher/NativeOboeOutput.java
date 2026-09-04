@@ -1,0 +1,33 @@
+package com.crewpocket.teacher;
+
+/** Optional native Oboe playback. Any load/start failure keeps Java AudioTrack active. */
+final class NativeOboeOutput {
+    private static boolean available;
+    static {
+        try { System.loadLibrary("crewaudio"); available = true; } catch (Throwable ignored) { available = false; }
+    }
+    static boolean start(String outputMode) {
+        try { return available && nativeStart("media".equals(outputMode)); }
+        catch (Throwable ignored) { available = false; return false; }
+    }
+    static void stop() { if (available) nativeStop(); }
+    static void flush() { if (available) nativeFlush(); }
+    /** Gemini marked its turn complete: play a short final PCM fragment now. */
+    static void finishTurn() { if (available) nativeFinishTurn(); }
+    static void write(byte[] pcm) { if (available && pcm != null && pcm.length > 0) nativeWrite(pcm, pcm.length); }
+    static int getBufferedMs() {
+        try { return available ? nativeGetBufferedMs() : 0; }
+        catch (Throwable ignored) { return 0; }
+    }
+    static String getInfo() {
+        try { return available ? nativeGetInfo() : null; }
+        catch (Throwable ignored) { return null; }
+    }
+    private static native boolean nativeStart(boolean mediaOutput);
+    private static native void nativeStop();
+    private static native void nativeFlush();
+    private static native void nativeFinishTurn();
+    private static native void nativeWrite(byte[] pcm, int length);
+    private static native int nativeGetBufferedMs();
+    private static native String nativeGetInfo();
+}

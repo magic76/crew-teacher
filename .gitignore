@@ -1,0 +1,17 @@
+# Build outputs
+bin/
+bin-aaudio-test
+build-oboe.log
+*.apk
+*.idsig
+
+# Keystores & keys
+*.keystore
+*.jks
+
+# IDE & OS
+.DS_Store
+.idea/
+*.iml
+.gradle/
+build/
