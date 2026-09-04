@@ -181,6 +181,24 @@ public class NativeLiveActivity extends Activity {
             bTitle.setTypeface(Typeface.DEFAULT_BOLD);
             bHeader.addView(bTitle, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
 
+            // ✨ AI New Passage Button
+            Button aiGenBtn = new Button(this);
+            aiGenBtn.setText(en ? "✨ AI New" : "✨ 換一篇");
+            aiGenBtn.setTextSize(11);
+            aiGenBtn.setTextColor(Color.WHITE);
+            GradientDrawable aBg = new GradientDrawable();
+            aBg.setColor(Color.parseColor("#4F46E5"));
+            aBg.setCornerRadius(dp(8));
+            aiGenBtn.setBackground(aBg);
+            aiGenBtn.setOnClickListener(new View.OnClickListener() {
+                @Override public void onClick(View v) {
+                    triggerAiNewPassage();
+                }
+            });
+            LinearLayout.LayoutParams aLp = new LinearLayout.LayoutParams(dp(76), dp(32));
+            aLp.setMargins(0, 0, dp(6), 0);
+            bHeader.addView(aiGenBtn, aLp);
+
             // Reset / Restart Button
             Button resetBtn = new Button(this);
             resetBtn.setText(en ? "🔄 Restart" : "🔄 重新朗讀");
@@ -963,6 +981,29 @@ public class NativeLiveActivity extends Activity {
         });
         builder.setNegativeButton(en ? "Cancel" : "取消", null);
         builder.show();
+    }
+
+    private void triggerAiNewPassage() {
+        final boolean en = I18n.isEnglish(this);
+        String currentLang = AppConfig.getTutorLanguage(this);
+        String langLabel = MainActivity.getLanguageLabel(currentLang);
+        Toast.makeText(this, en ? "🤖 AI is generating new " + langLabel + " reading passage..." : "🤖 AI 外師正在生成新的「" + langLabel + "」朗讀文章…", Toast.LENGTH_SHORT).show();
+        String persona = AppConfig.getTutorPersona(this);
+
+        ReadingMaterialGenerator.generateAsync(this, persona, "intermediate", new ReadingMaterialGenerator.GenerateCallback() {
+            @Override public void onSuccess(String text) {
+                AppConfig.setReadingText(NativeLiveActivity.this, text);
+                fullReadingText = text;
+                setupReadingData();
+                renderReadingBoardSpannable();
+                resetReadingBoard();
+                Toast.makeText(NativeLiveActivity.this, en ? "✨ New passage generated! Start reading whenever ready." : "✨ 新朗讀教材生成完畢！請直接開口朗讀。", Toast.LENGTH_SHORT).show();
+            }
+
+            @Override public void onError(String error) {
+                Toast.makeText(NativeLiveActivity.this, error, Toast.LENGTH_LONG).show();
+            }
+        });
     }
 
     @Override

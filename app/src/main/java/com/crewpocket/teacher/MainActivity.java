@@ -763,37 +763,91 @@ public class MainActivity extends Activity {
 
     private void showReadingTextDialog() {
         final boolean en = I18n.isEnglish(this);
-        final String[] presetTitles = {
-                en ? "🔥 Phonetic Traps Challenge (Subtle, Comfortable, Thorough...)" : "🔥 發音地雷挑戰 (Subtle, Comfortable, Thorough, Photographer...)",
-                en ? "🌱 Daily & Morning Life (Beginner friendly)" : "🌱 日常晨間漫步 (初級友好短文)",
-                en ? "✈️ Travel & Asking Directions (Practical travel)" : "✈️ 旅遊問路情境 (出國實用生活篇)",
-                en ? "💼 Business & AI Workflow (Professional)" : "💼 職場科技商務 (AI 專案簡報篇)",
-                en ? "🌟 Steve Jobs Stanford Speech (Inspirational)" : "🌟 賈伯斯史丹佛演講經典名言 (哲理勵志篇)",
-                en ? "✏️ Custom Input / Paste Article" : "✏️ 自訂輸入 / 貼上朗讀文章…"
-        };
+        String currentLang = AppConfig.getTutorLanguage(this);
+        String langLabel = getLanguageLabel(currentLang);
 
-        final String[] presetContents = {
-                "Although he was exhausted from thorough research throughout the night, the subtle photographer comfortably climbed the mountain to capture the scenic view with incredible depth and clarity.",
-                "Good morning! Today is a bright and sunny day. I am going to the local coffee shop to grab a fresh cup of coffee and read a good book. Learning English step by step makes me feel confident and happy.",
-                "Excuse me, could you please tell me how to get to the central station? I have a train to catch at 3:30 PM. Also, is there a comfortable cafe nearby where I can wait? Thank you so much for your kind help!",
-                "Good afternoon, everyone. Today, I would like to present our quarterly project milestones and financial forecasts. By leveraging modern artificial intelligence, we have streamlined our workflow and significantly boosted productivity.",
-                "Your time is limited, so don't waste it living someone else's life. Don't be trapped by dogma, which is living with the results of other people's thinking. Stay hungry, stay foolish."
+        final String[] options = {
+                en ? "✨ AI Generate: Daily & Casual Life (" + langLabel + ")" : "✨ AI 智能生成：日常生活會話 (" + langLabel + ")",
+                en ? "✨ AI Generate: Travel & Dining (" + langLabel + ")" : "✨ AI 智能生成：出國旅遊問路 (" + langLabel + ")",
+                en ? "✨ AI Generate: Business & Workplace (" + langLabel + ")" : "✨ AI 智能生成：職場商務科技 (" + langLabel + ")",
+                en ? "🔥 AI Generate: Challenging Pronunciation & Phonetics" : "🔥 AI 智能生成：發音地雷與連音特訓 (" + langLabel + ")",
+                en ? "🎯 AI Custom Topic (Enter any topic you want...)" : "🎯 AI 自訂主題出題（輸入任意情境讓外師出題…）",
+                en ? "📋 Paste Custom Text from Clipboard" : "📋 手動輸入 / 從剪貼簿貼上文章…"
         };
 
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        builder.setTitle(en ? "📖 Select Reading Material" : "📖 選擇朗讀與糾音教材");
-        builder.setItems(presetTitles, new DialogInterface.OnClickListener() {
+        builder.setTitle(en ? "📖 Select or Generate Reading Text" : "📖 選擇或生成「" + langLabel + "」朗讀教材");
+        builder.setItems(options, new DialogInterface.OnClickListener() {
             @Override public void onClick(DialogInterface dialog, int which) {
-                if (which < presetContents.length) {
-                    AppConfig.setReadingText(MainActivity.this, presetContents[which]);
-                    renderHomePage();
-                    Toast.makeText(MainActivity.this, en ? "Reading material selected!" : "已選定朗讀文章！", Toast.LENGTH_SHORT).show();
+                if (which == 0) {
+                    triggerAiGenerateMaterial("daily", "intermediate");
+                } else if (which == 1) {
+                    triggerAiGenerateMaterial("travel", "intermediate");
+                } else if (which == 2) {
+                    triggerAiGenerateMaterial("business", "advanced");
+                } else if (which == 3) {
+                    triggerAiGenerateMaterial("phonetics", "advanced");
+                } else if (which == 4) {
+                    showCustomAiPromptDialog();
                 } else {
                     showCustomReadingInputDialog();
                 }
             }
         });
-        builder.setNegativeButton(en ? "Close" : "關閉", null);
+        builder.setNegativeButton(en ? "Cancel" : "取消", null);
+        builder.show();
+    }
+
+    private void triggerAiGenerateMaterial(String topic, String level) {
+        final boolean en = I18n.isEnglish(this);
+        Toast.makeText(this, en ? "🤖 AI tutor is generating reading passage..." : "🤖 AI 外師正在為您生成量身練習文章…", Toast.LENGTH_SHORT).show();
+        ReadingMaterialGenerator.generateAsync(this, topic, level, new ReadingMaterialGenerator.GenerateCallback() {
+            @Override public void onSuccess(String generatedText) {
+                AppConfig.setReadingText(MainActivity.this, generatedText);
+                renderHomePage();
+                Toast.makeText(MainActivity.this, en ? "✨ AI Reading material generated!" : "✨ AI 朗讀教材生成成功！", Toast.LENGTH_SHORT).show();
+            }
+
+            @Override public void onError(String error) {
+                Toast.makeText(MainActivity.this, error, Toast.LENGTH_LONG).show();
+            }
+        });
+    }
+
+    private void showCustomAiPromptDialog() {
+        final boolean en = I18n.isEnglish(this);
+        String currentLang = AppConfig.getTutorLanguage(this);
+        String langLabel = getLanguageLabel(currentLang);
+
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle(en ? "🎯 AI Custom Topic Generator" : "🎯 AI 自訂主題出題 (" + langLabel + ")");
+        builder.setMessage(en ? "Enter the topic or scenario you want the AI tutor to generate (e.g. 'ordering ramen in Tokyo', 'job interview', 'buying coffee'):"
+                : "請輸入任何您想練習的情境主題（例如：日本拉麵點餐、機場辦理登機、咖啡廳聊天、面試自我介紹）：");
+
+        LinearLayout layout = new LinearLayout(this);
+        layout.setOrientation(LinearLayout.VERTICAL);
+        layout.setPadding(dp(16), dp(8), dp(16), dp(8));
+
+        final EditText input = new EditText(this);
+        input.setHint(en ? "e.g. Ordering food at an Italian restaurant" : "例如：在義大利餐廳點餐、週末爬山放鬆");
+        input.setTextColor(Color.WHITE);
+        input.setPadding(dp(12), dp(10), dp(12), dp(10));
+        GradientDrawable iBg = new GradientDrawable();
+        iBg.setColor(Color.parseColor("#1E293B"));
+        iBg.setCornerRadius(dp(10));
+        input.setBackground(iBg);
+        layout.addView(input);
+
+        builder.setView(layout);
+        builder.setPositiveButton(en ? "✨ Generate with AI" : "✨ AI 立即出題", new DialogInterface.OnClickListener() {
+            @Override public void onClick(DialogInterface dialog, int which) {
+                String prompt = input.getText().toString().trim();
+                if (!prompt.isEmpty()) {
+                    triggerAiGenerateMaterial(prompt, "intermediate");
+                }
+            }
+        });
+        builder.setNegativeButton(en ? "Cancel" : "取消", null);
         builder.show();
     }
 
