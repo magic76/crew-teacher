@@ -66,7 +66,6 @@ public class NativeGeminiLiveClient {
     private volatile boolean interruptedCurrentTurn;
     private volatile boolean allowVoiceInterruption = true; // 🎙️ 語音插話開關
     private volatile boolean agentMuted = false;
-    private volatile boolean hasReceivedToolSubtitle = false;
 
     private AudioRecord recorder;
     private AcousticEchoCanceler aecEffect;
@@ -79,6 +78,7 @@ public class NativeGeminiLiveClient {
     private final BlockingQueue<byte[]> audioQueue = new LinkedBlockingQueue<byte[]>(64);
     private Thread audioPlaybackThread;
     private volatile boolean audioPlaybackRunning;
+    private volatile long totalFramesWritten = 0;
 
     private final Handler interruptionHandler = new Handler(Looper.getMainLooper());
     private final Runnable clearInterruptedFallback = new Runnable() {
@@ -230,6 +230,8 @@ public class NativeGeminiLiveClient {
 
     private void stopPlayback() {
         audioQueue.clear();
+        totalFramesWritten = 0;
+        lastPlaybackActiveAt = 0;
         if (usingOboeOutput) NativeOboeOutput.flush();
         synchronized (playerLock) {
             if (player != null && player.getPlayState() == AudioTrack.PLAYSTATE_PLAYING) {
@@ -317,19 +319,12 @@ public class NativeGeminiLiveClient {
                     if (usingOboeOutput) NativeOboeOutput.finishTurn();
                     interruptedCurrentTurn = false;
                     interruptionHandler.removeCallbacks(clearInterruptedFallback);
-                    lastPlaybackActiveAt = 0;
-                    if (aiSpeaking) {
-                        aiSpeaking = false;
-                        listener.onSpeakingChanged(false);
-                    }
                     final String completeTurnText = currentAiTurnText.toString().trim();
                     currentAiTurnText.setLength(0);
                     String mode = AppConfig.getTeachingMode(context);
-                    // Fallback to translateAsync ONLY if tool call wasn't triggered in this turn and not immersion
-                    if (!"immersion".equals(mode) && !hasReceivedToolSubtitle && !completeTurnText.isEmpty()) {
+                    if (!"immersion".equals(mode) && !completeTurnText.isEmpty()) {
                         translateAsync(completeTurnText);
                     }
-                    hasReceivedToolSubtitle = false;
                 }
             }
 
@@ -341,54 +336,7 @@ public class NativeGeminiLiveClient {
                         JSONObject fc = calls.getJSONObject(i);
                         String name = fc.optString("name", "");
                         String id = fc.optString("id", "call_0");
-                        JSONObject args = fc.optJSONObject("args");
-
-                        if ("display_bilingual_subtitle".equals(name)) {
-                            hasReceivedToolSubtitle = true;
-                            if (args != null) {
-                                String targetText = args.optString("target_text", "").trim();
-                                String nativeTrans = args.optString("native_translation", "").trim();
-                                String keyVocab = args.optString("key_vocab", "").trim();
-                                java.util.List<String> hintsList = new java.util.ArrayList<String>();
-
-                                JSONArray hints = args.optJSONArray("suggested_replies");
-                                if (hints != null && hints.length() > 0) {
-                                    for (int h = 0; h < hints.length(); h++) {
-                                        String hint = hints.optString(h, "").trim();
-                                        if (!hint.isEmpty()) {
-                                            hintsList.add(hint);
-                                        }
-                                    }
-                                } else {
-                                    String singleHint = args.optString("suggested_replies", "").trim();
-                                    if (!singleHint.isEmpty()) {
-                                        hintsList.add(singleHint);
-                                    }
-                                }
-
-                                StringBuilder sb = new StringBuilder();
-                                if (!nativeTrans.isEmpty()) {
-                                    sb.append(nativeTrans);
-                                }
-                                if (!keyVocab.isEmpty()) {
-                                    if (sb.length() > 0) sb.append("\n");
-                                    sb.append("💡 單字/句型：").append(keyVocab);
-                                }
-                                if (!hintsList.isEmpty()) {
-                                    if (sb.length() > 0) sb.append("\n💬 建議回答小抄：");
-                                    for (String hint : hintsList) {
-                                        sb.append("\n  • ").append(hint);
-                                    }
-                                }
-
-                                if (sb.length() > 0) {
-                                    listener.onSubtitleData(targetText, nativeTrans, keyVocab, hintsList);
-                                    listener.onTranscript(sb.toString(), "translation");
-                                }
-                            }
-                            JSONObject res = new JSONObject().put("status", "displayed");
-                            sendToolResponse(id, name, res);
-                        } else if ("end_voice_session".equals(name)) {
+                        if ("end_voice_session".equals(name)) {
                             sendToolResponse(id, name, new JSONObject().put("status", "ended"));
                             interruptionHandler.postDelayed(new Runnable() {
                                 @Override public void run() { stop(); }
@@ -458,23 +406,6 @@ public class NativeGeminiLiveClient {
         tools.put(new JSONObject().put("name", "end_voice_session")
                 .put("description", "End the tutoring voice call when the user says goodbye, hang up, or exit (e.g. 結束, 掛斷, 再見, 先這樣, bye)."));
 
-        JSONObject displaySubtitleProps = new JSONObject();
-        displaySubtitleProps.put("target_text", new JSONObject().put("type", "STRING").put("description", "The foreign sentence/phrase spoken by the tutor in " + langName));
-        displaySubtitleProps.put("native_translation", new JSONObject().put("type", "STRING").put("description", "Accurate, natural translation in student's native language (" + nativeLang + ")"));
-        displaySubtitleProps.put("key_vocab", new JSONObject().put("type", "STRING").put("description", "Optional key vocabulary, idioms, or grammar notes with explanation"));
-        JSONObject hintItems = new JSONObject().put("type", "STRING");
-        JSONObject hintsSchema = new JSONObject().put("type", "ARRAY").put("description", "2 to 3 practical sample response hints that the student could say back in " + langName + " (with " + nativeLang + " translation in parentheses), helping them answer effortlessly.").put("items", hintItems);
-        displaySubtitleProps.put("suggested_replies", hintsSchema);
-
-        JSONObject displaySubtitleParams = new JSONObject();
-        displaySubtitleParams.put("type", "OBJECT");
-        displaySubtitleParams.put("properties", displaySubtitleProps);
-        displaySubtitleParams.put("required", new JSONArray().put("target_text").put("native_translation").put("suggested_replies"));
-
-        tools.put(new JSONObject().put("name", "display_bilingual_subtitle")
-                .put("description", "MANDATORY in every single turn: Display real-time visual bilingual subtitle card on the student's screen containing the target text, native translation, key vocabulary, and 2-3 sample response hints in " + langName + " for the student.")
-                .put("parameters", displaySubtitleParams));
-
         setup.put("tools", new JSONArray().put(new JSONObject().put("functionDeclarations", tools)));
 
         String personaDetail;
@@ -533,32 +464,24 @@ public class NativeGeminiLiveClient {
                     + "4. GENTLE RECAST: If the student makes mistakes in " + langName + ", model the correct phrasing naturally in pure " + langName + ".\n"
                     + "5. When the student says goodbye or wants to exit, say a warm farewell in " + langName + " and call 'end_voice_session'.";
         } else if ("beginner".equals(teachingMode)) {
-            // 零基礎引導模式：純外語短句示範，同時呼叫 tool 傳送螢幕中文翻譯
             modeInstruction = "【Teaching Mode: BEGINNER STEP-BY-STEP (零基礎引導模式)】\n"
-                    + "1. AUDIO RULE: Speak ONE short, practical sentence in 100% pure " + langName + ". Never pronounce Chinese words out loud in audio.\n"
-                    + "2. TOOL CALL: In every turn, you MUST call 'display_bilingual_subtitle' with the phrase and its " + nativeLang + " translation.\n"
+                    + "1. Speak ONE short, crystal-clear, practical sentence in 100% pure " + langName + " for the learner to mimic.\n"
+                    + "2. Never pronounce Chinese words out loud in audio.\n"
                     + "3. Warmly encourage the student to repeat after you.";
             rules = "CRITICAL CONVERSATIONAL RULES (BEGINNER):\n"
-                    + "1. Speak short, crystal-clear practical phrases in pure " + langName + " for the learner to mimic.\n"
+                    + "1. Keep sentences short and clear in pure " + langName + ".\n"
                     + "2. DO NOT pronounce or speak any " + nativeLang + " words out loud in audio.\n"
-                    + "3. Call 'display_bilingual_subtitle' in every turn to display " + nativeLang + " subtitle on screen.\n"
-                    + "4. When the student says goodbye or wants to exit, say a warm farewell and call 'end_voice_session'.";
+                    + "3. When the student says goodbye or wants to exit, say a warm farewell and call 'end_voice_session'.";
         } else {
-            // 雙語對照模式（預設推薦）：耳朵聽 100% 純外語發音，同時呼叫 Tool 在螢幕即時顯示母語 (中文/英文) 翻譯與學習筆記及建議回答小抄
-            modeInstruction = "【Teaching Mode: BILINGUAL SCAFFOLDING & REAL-TIME VISUAL SUBTITLE (雙語字幕對照教學模式)】\n"
+            modeInstruction = "【Teaching Mode: BILINGUAL CONVERSATIONAL PRACTICE (雙語對照教學模式)】\n"
                     + "1. AUDIO RULE (Pure Target Language): Speak 100% in natural, fluent, native " + langName + " (絕對嚴禁在語音中說出 " + nativeLang + "！耳聽純外語沉浸).\n"
-                    + "2. TOOL CALL (Mandatory Visual Translation & Smart Reply Hints): In EVERY single turn without exception, you MUST call 'display_bilingual_subtitle' with:\n"
-                    + "   - target_text: your spoken sentence in " + langName + "\n"
-                    + "   - native_translation: natural, accurate translation in " + nativeLang + "\n"
-                    + "   - key_vocab: (optional) useful vocabulary or idioms from your response\n"
-                    + "   - suggested_replies: 2 to 3 sample sentences in " + langName + " (with " + nativeLang + " translation in parentheses) that the student can use to answer you\n"
-                    + "3. Always end your spoken sentence with an open-ended question in " + langName + " so the student has an easy cue to reply in " + langName + ".";
+                    + "2. Keep spoken responses conversational and concise (1-2 sentences in " + langName + ").\n"
+                    + "3. Always end your spoken sentence with an engaging open-ended question in " + langName + " so the student has an easy cue to reply in " + langName + ".";
             rules = "CRITICAL BILINGUAL RULES:\n"
                     + "1. 100% PURE " + langName + " IN AUDIO: Never speak " + nativeLang + " in the audio stream.\n"
-                    + "2. EVERY TURN CALL 'display_bilingual_subtitle' to supply visual subtitle, notes, and 2-3 reply hints in " + nativeLang + " for the student.\n"
-                    + "3. Keep spoken responses natural and concise (1-2 sentences in " + langName + ").\n"
-                    + "4. ACTIVE RECAST: If the student makes mistakes in " + langName + ", model the corrected sentence in " + langName + " and explain the correction in 'native_translation' via the tool call.\n"
-                    + "5. When the student says goodbye or wants to exit, say farewell in " + langName + " and call 'end_voice_session'.";
+                    + "2. Keep spoken responses natural and concise (1-2 sentences in " + langName + ").\n"
+                    + "3. ACTIVE RECAST: If the student makes mistakes in " + langName + ", model the corrected sentence naturally in " + langName + ".\n"
+                    + "4. When the student says goodbye or wants to exit, say farewell in " + langName + " and call 'end_voice_session'.";
         }
 
         String baseInstruction = "You are 'Crew Teacher', an insightful, precise, and rigorous 1-on-1 language coach. "
@@ -577,8 +500,8 @@ public class NativeGeminiLiveClient {
     }
 
     private static final String[] TRANSLATION_MODELS = {
-            "gemini-3.6-flash",
             "gemini-2.5-flash",
+            "gemini-3.6-flash",
             "gemini-2.0-flash",
             "gemini-1.5-flash"
     };
@@ -587,17 +510,19 @@ public class NativeGeminiLiveClient {
         if (apiKey == null || apiKey.isEmpty() || sourceText.isEmpty()) return;
         String targetLang = AppConfig.getStudentLanguageDisplayName(context);
         String practiceLang = getLanguageDisplayName(tutorLang);
-        final String prompt = "You are a professional language tutor assistant.\n"
-                + "Given the tutor's spoken sentence in " + practiceLang + ":\n\"" + sourceText + "\"\n\n"
-                + "Provide:\n"
-                + "1. Natural, fluent translation in student's native language (" + targetLang + ")\n"
-                + "2. Two sample response hints in " + practiceLang + " (with " + targetLang + " translation in parentheses) that the student can use to answer back.\n\n"
-                + "Format your response EXACTLY as:\n"
-                + "[Direct translation in " + targetLang + "]\n"
-                + "💬 建議回答小抄：\n"
-                + "  • [Reply Option 1 in " + practiceLang + "] ([translation in " + targetLang + "])\n"
-                + "  • [Reply Option 2 in " + practiceLang + "] ([translation in " + targetLang + "])\n\n"
-                + "Output ONLY this formatted text without any markdown bolding, greetings, or extra explanations.";
+        final String prompt = "You are an expert language tutor assistant.\n"
+                + "Spoken sentence in " + practiceLang + ":\n\"" + sourceText + "\"\n\n"
+                + "Student native language: " + targetLang + "\n\n"
+                + "Return a strictly valid JSON object with EXACTLY these keys:\n"
+                + "{\n"
+                + "  \"translation\": \"(fluent translation in " + targetLang + ")\",\n"
+                + "  \"key_vocab\": \"(optional 1-2 key words or grammar points with explanation in " + targetLang + ", or empty)\",\n"
+                + "  \"suggested_replies\": [\n"
+                + "    \"(Sample reply 1 in " + practiceLang + ") ((translation in " + targetLang + "))\",\n"
+                + "    \"(Sample reply 2 in " + practiceLang + ") ((translation in " + targetLang + "))\"\n"
+                + "  ]\n"
+                + "}\n"
+                + "Output ONLY the JSON object without markdown fences or code blocks.";
         tryTranslateAt(0, sourceText, prompt);
     }
 
@@ -614,8 +539,8 @@ public class NativeGeminiLiveClient {
             root.put("contents", contents);
 
             JSONObject genConfig = new JSONObject();
-            genConfig.put("temperature", 0.3);
-            genConfig.put("maxOutputTokens", 300);
+            genConfig.put("temperature", 0.2);
+            genConfig.put("maxOutputTokens", 350);
             root.put("generationConfig", genConfig);
 
             String url = "https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent?key=" + apiKey;
@@ -637,28 +562,32 @@ public class NativeGeminiLiveClient {
                                 if (content != null) {
                                     JSONArray resParts = content.optJSONArray("parts");
                                     if (resParts != null && resParts.length() > 0) {
-                                        String translation = resParts.getJSONObject(0).optString("text", "").trim();
-                                        if (translation.startsWith("\"") && translation.endsWith("\"") && translation.length() > 2) {
-                                            translation = translation.substring(1, translation.length() - 1).trim();
+                                        String raw = resParts.getJSONObject(0).optString("text", "").trim();
+                                        if (raw.startsWith("```")) {
+                                            raw = raw.replaceAll("^```(?:json)?\\s*", "").replaceAll("\\s*```$", "");
                                         }
-                                        if (!translation.isEmpty()) {
-                                            String mainTrans = translation;
+                                        try {
+                                            JSONObject obj = new JSONObject(raw);
+                                            String mainTrans = obj.optString("translation", "").trim();
+                                            String keyVocab = obj.optString("key_vocab", "").trim();
+                                            JSONArray hintsArr = obj.optJSONArray("suggested_replies");
                                             java.util.List<String> hints = new java.util.ArrayList<String>();
-                                            if (translation.contains("💬 建議回答小抄：")) {
-                                                String[] split = translation.split("💬 建議回答小抄：");
-                                                mainTrans = split[0].trim();
-                                                if (split.length > 1) {
-                                                    String[] lines = split[1].split("\n");
-                                                    for (String line : lines) {
-                                                        String h = line.replace("•", "").trim();
-                                                        if (h.startsWith("-")) h = h.substring(1).trim();
-                                                        if (!h.isEmpty()) hints.add(h);
-                                                    }
+                                            if (hintsArr != null) {
+                                                for (int h = 0; h < hintsArr.length(); h++) {
+                                                    String hint = hintsArr.optString(h, "").trim();
+                                                    if (!hint.isEmpty()) hints.add(hint);
                                                 }
                                             }
-                                            listener.onSubtitleData(sourceText, mainTrans, "", hints);
-                                            listener.onTranscript(translation, "translation");
-                                            return;
+                                            if (!mainTrans.isEmpty()) {
+                                                listener.onSubtitleData(sourceText, mainTrans, keyVocab, hints);
+                                                return;
+                                            }
+                                        } catch (Exception parseJsonErr) {
+                                            // Fallback if raw text returned
+                                            if (!raw.isEmpty()) {
+                                                listener.onSubtitleData(sourceText, raw, "", new java.util.ArrayList<String>());
+                                                return;
+                                            }
                                         }
                                     }
                                 }
@@ -739,6 +668,7 @@ public class NativeGeminiLiveClient {
     }
 
     private void createAudioPlayer() {
+        totalFramesWritten = 0;
         usingOboeOutput = NativeOboeOutput.start(audioOutput);
         if (usingOboeOutput) {
             audioOutputBackend = "Oboe/AAudio Low-Latency";
@@ -807,12 +737,16 @@ public class NativeGeminiLiveClient {
                 try { player.play(); } catch (Exception ignored) {}
             }
             written = player == null ? AudioTrack.ERROR_INVALID_OPERATION : player.write(pcm, 0, pcm.length);
+            if (written > 0) {
+                totalFramesWritten += (written / 2);
+            }
         }
         if (written < 0) recoverAudioPlayer();
     }
 
     private void recoverAudioPlayer() {
         if (!audioPlaybackRunning || !running) return;
+        totalFramesWritten = 0;
         createAudioPlayer();
     }
 
@@ -831,9 +765,18 @@ public class NativeGeminiLiveClient {
         if (!running) return false;
         long now = System.currentTimeMillis();
         if (usingOboeOutput) {
-            return NativeOboeOutput.getBufferedMs() > 0 || now < lastPlaybackActiveAt + 150;
+            return NativeOboeOutput.getBufferedMs() > 0 || (lastPlaybackActiveAt > 0 && now < lastPlaybackActiveAt + 200);
         }
-        return !audioQueue.isEmpty() || now < lastPlaybackActiveAt + 150;
+        boolean trackActive = false;
+        synchronized (playerLock) {
+            if (player != null && player.getPlayState() == AudioTrack.PLAYSTATE_PLAYING) {
+                long head = player.getPlaybackHeadPosition() & 0xFFFFFFFFL;
+                if (totalFramesWritten > head + 240) {
+                    trackActive = true;
+                }
+            }
+        }
+        return !audioQueue.isEmpty() || trackActive || (lastPlaybackActiveAt > 0 && now < lastPlaybackActiveAt + 200);
     }
 
     private double calculateRms(byte[] pcm, int count) {
@@ -863,9 +806,10 @@ public class NativeGeminiLiveClient {
 
             long now = System.currentTimeMillis();
             boolean currentlyPlaying = isAudioActuallyPlaying();
+            boolean inPlaybackOrEchoTail = currentlyPlaying || (lastPlaybackActiveAt > 0 && now < lastPlaybackActiveAt + 400);
 
-            // Watchdog: If AI finished playing all audio frames for >250ms, auto-release aiSpeaking state
-            if (aiSpeaking && !currentlyPlaying && now > lastPlaybackActiveAt + 250) {
+            // Watchdog: If AI finished playing all audio frames for >400ms, auto-release aiSpeaking state
+            if (aiSpeaking && !inPlaybackOrEchoTail) {
                 aiSpeaking = false;
                 lastPlaybackActiveAt = 0;
                 interruptedCurrentTurn = false;
@@ -903,8 +847,8 @@ public class NativeGeminiLiveClient {
                 noiseFloor = Math.min(0.035, noiseFloor * 0.985 + clampedRms * 0.015);
             }
 
-            // Only enforce interruption gate when the speaker is PHYSICALLY PLAYING audio right now
-            if (currentlyPlaying) {
+            // Only enforce interruption gate when the speaker is PHYSICALLY PLAYING audio right now or in reverberation tail
+            if (inPlaybackOrEchoTail) {
                 // If sensitivity <= 25 (Shield Mode) or interruption disabled:
                 // Completely protect the tutor speech from speaker acoustic loopback
                 if (!allowVoiceInterruption || interruptionSensitivity <= 25) {
@@ -930,7 +874,7 @@ public class NativeGeminiLiveClient {
                     consecutiveVoiceFrames = 0;
                 }
 
-                // While AI is playing audio, NEVER send microphone echo to Gemini WebSocket
+                // While AI is playing audio or in echo tail, NEVER send microphone echo to Gemini WebSocket
                 reportMicrophoneLevel(rms, gateThreshold, false);
                 continue;
             } else {
