@@ -48,7 +48,7 @@ public class FloatingBubbleManager {
     private boolean isDialogShowing = false;
 
     private TextView statusText;
-    private TextView transcriptText;
+    private LinearLayout bubbleChatContainer;
     private ScrollView transcriptScroll;
     private Button callBtn;
     private Button muteBtn;
@@ -56,7 +56,6 @@ public class FloatingBubbleManager {
     private TextView meterText;
 
     private String latestStatus = "待命中";
-    private String latestTranscript = "點擊下方按鈕開始口語練習…";
 
     private boolean isDocked = false;
     private ValueAnimator dockAnimator = null;
@@ -357,32 +356,18 @@ public class FloatingBubbleManager {
         statusBox.addView(meterText);
         root.addView(statusBox);
 
-        // Transcript Scroll View
+        // Transcript Scroll View with Conversation Cards
         transcriptScroll = new ScrollView(context);
-        transcriptScroll.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(140)));
-        transcriptScroll.setPadding(dp(8), dp(6), dp(8), dp(6));
+        transcriptScroll.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(150)));
+        transcriptScroll.setPadding(dp(4), dp(4), dp(4), dp(4));
 
-        transcriptText = new TextView(context);
-        transcriptText.setText(latestTranscript);
-        transcriptText.setTextColor(Color.parseColor("#E2E8F0"));
-        transcriptText.setTextSize(14);
-        transcriptText.setLineSpacing(dp(2), 1.15f);
-        transcriptText.addOnLayoutChangeListener(new View.OnLayoutChangeListener() {
-            @Override
-            public void onLayoutChange(View v, int left, int top, int right, int bottom, int oldLeft, int oldTop, int oldRight, int oldBottom) {
-                if (transcriptScroll != null) {
-                    transcriptScroll.post(new Runnable() {
-                        @Override public void run() {
-                            if (transcriptScroll != null) {
-                                transcriptScroll.fullScroll(View.FOCUS_DOWN);
-                            }
-                        }
-                    });
-                }
-            }
-        });
-        transcriptScroll.addView(transcriptText);
+        bubbleChatContainer = new LinearLayout(context);
+        bubbleChatContainer.setOrientation(LinearLayout.VERTICAL);
+        bubbleChatContainer.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        transcriptScroll.addView(bubbleChatContainer);
         root.addView(transcriptScroll);
+        renderBubbleChatCards();
 
         // Action Buttons Row 1: Call & Mute & Audio Output
         LinearLayout actions = new LinearLayout(context);
@@ -497,7 +482,7 @@ public class FloatingBubbleManager {
         } catch (Exception ignored) {}
         dialogView = null;
         transcriptScroll = null;
-        transcriptText = null;
+        bubbleChatContainer = null;
         statusText = null;
         meterText = null;
         isDialogShowing = false;
@@ -514,20 +499,30 @@ public class FloatingBubbleManager {
         });
     }
 
-    private final StringBuilder committedTranscriptLog = new StringBuilder();
-    private String currentBubbleTurnRole = "";
-    private final StringBuilder currentBubbleTurnText = new StringBuilder();
-    private String currentBubbleTurnTranslation = "";
-    private boolean isCurrentBubbleTranslationRevealed = false;
+    public static class BubbleChatTurn {
+        public String role = "ai"; // "user" or "ai"
+        public StringBuilder spoken = new StringBuilder();
+        public String translation = "";
+        public String keyVocab = "";
+        public java.util.List<String> hints = new java.util.ArrayList<String>();
+        public boolean translationRevealed = false;
+    }
+
+    private final java.util.List<BubbleChatTurn> bubbleTurnHistory = new java.util.ArrayList<BubbleChatTurn>();
+    private BubbleChatTurn currentBubbleChatTurn = null;
 
     public void onSpeakingChanged(final boolean speaking) {
         mainHandler.post(new Runnable() {
             @Override public void run() {
                 if (speaking) {
-                    isCurrentBubbleTranslationRevealed = false;
+                    if (currentBubbleChatTurn != null && "ai".equals(currentBubbleChatTurn.role)) {
+                        currentBubbleChatTurn.translationRevealed = false;
+                    }
                 } else {
-                    isCurrentBubbleTranslationRevealed = true;
-                    renderBubbleTranscriptView();
+                    if (currentBubbleChatTurn != null && "ai".equals(currentBubbleChatTurn.role)) {
+                        currentBubbleChatTurn.translationRevealed = true;
+                    }
+                    renderBubbleChatCards();
                 }
                 updateBubbleVoiceState();
             }
@@ -547,16 +542,39 @@ public class FloatingBubbleManager {
                 boolean isAi = "ai".equalsIgnoreCase(role) || "Gemini".equalsIgnoreCase(role);
                 String roleKey = isAi ? "ai" : "user";
 
-                if (!roleKey.equals(currentBubbleTurnRole)) {
-                    commitBubbleCurrentTurn();
-                    currentBubbleTurnRole = roleKey;
-                    currentBubbleTurnText.setLength(0);
-                    currentBubbleTurnTranslation = "";
-                    isCurrentBubbleTranslationRevealed = !isAi;
+                if (currentBubbleChatTurn == null || !roleKey.equals(currentBubbleChatTurn.role)) {
+                    if (currentBubbleChatTurn != null && currentBubbleChatTurn.spoken.length() > 0) {
+                        bubbleTurnHistory.add(currentBubbleChatTurn);
+                    }
+                    currentBubbleChatTurn = new BubbleChatTurn();
+                    currentBubbleChatTurn.role = roleKey;
+                    currentBubbleChatTurn.translationRevealed = !isAi;
                 }
 
-                currentBubbleTurnText.append(text);
-                renderBubbleTranscriptView();
+                currentBubbleChatTurn.spoken.append(text);
+                renderBubbleChatCards();
+            }
+        });
+    }
+
+    public void applyStructuredSubtitleData(final String targetText, final String nativeTrans, final String keyVocab, final java.util.List<String> hints) {
+        mainHandler.post(new Runnable() {
+            @Override public void run() {
+                if (currentBubbleChatTurn == null || !"ai".equals(currentBubbleChatTurn.role)) {
+                    if (currentBubbleChatTurn != null && currentBubbleChatTurn.spoken.length() > 0) {
+                        bubbleTurnHistory.add(currentBubbleChatTurn);
+                    }
+                    currentBubbleChatTurn = new BubbleChatTurn();
+                    currentBubbleChatTurn.role = "ai";
+                }
+                currentBubbleChatTurn.translation = nativeTrans != null ? nativeTrans.trim() : "";
+                currentBubbleChatTurn.keyVocab = keyVocab != null ? keyVocab.trim() : "";
+                currentBubbleChatTurn.hints.clear();
+                if (hints != null) currentBubbleChatTurn.hints.addAll(hints);
+                if (!NativeLiveService.isAiSpeaking()) {
+                    currentBubbleChatTurn.translationRevealed = true;
+                }
+                renderBubbleChatCards();
             }
         });
     }
@@ -564,74 +582,180 @@ public class FloatingBubbleManager {
     private void applyBubbleTranslation(String text) {
         if (text == null || text.trim().isEmpty()) return;
         String clean = text.trim();
-        if ("ai".equals(currentBubbleTurnRole)) {
-            currentBubbleTurnTranslation = clean;
-            if (!NativeLiveService.isAiSpeaking()) {
-                isCurrentBubbleTranslationRevealed = true;
+        if (currentBubbleChatTurn != null && "ai".equals(currentBubbleChatTurn.role)) {
+            if (currentBubbleChatTurn.translation.isEmpty()) {
+                currentBubbleChatTurn.translation = clean;
             }
-            renderBubbleTranscriptView();
+            if (!NativeLiveService.isAiSpeaking()) {
+                currentBubbleChatTurn.translationRevealed = true;
+            }
+            renderBubbleChatCards();
         } else {
-            // If previous turn in history was AI without translation, append underneath it
-            int lastAiIdx = committedTranscriptLog.lastIndexOf("🤖 導師: ");
-            if (lastAiIdx != -1) {
-                int lastTransIdx = committedTranscriptLog.lastIndexOf("📖 翻譯與小抄：");
-                if (lastTransIdx == -1) lastTransIdx = committedTranscriptLog.lastIndexOf("📖 翻譯：");
-                if (lastTransIdx < lastAiIdx) {
-                    committedTranscriptLog.append("\n📖 翻譯與小抄：\n").append(clean);
-                    renderBubbleTranscriptView();
+            for (int i = bubbleTurnHistory.size() - 1; i >= 0; i--) {
+                BubbleChatTurn t = bubbleTurnHistory.get(i);
+                if ("ai".equals(t.role) && t.translation.isEmpty()) {
+                    t.translation = clean;
+                    t.translationRevealed = true;
+                    renderBubbleChatCards();
                     return;
                 }
             }
-            // Otherwise start new AI turn with buffered translation
-            commitBubbleCurrentTurn();
-            currentBubbleTurnRole = "ai";
-            currentBubbleTurnText.setLength(0);
-            currentBubbleTurnTranslation = clean;
-            if (!NativeLiveService.isAiSpeaking()) {
-                isCurrentBubbleTranslationRevealed = true;
+            if (currentBubbleChatTurn != null && currentBubbleChatTurn.spoken.length() > 0) {
+                bubbleTurnHistory.add(currentBubbleChatTurn);
             }
-            renderBubbleTranscriptView();
+            currentBubbleChatTurn = new BubbleChatTurn();
+            currentBubbleChatTurn.role = "ai";
+            currentBubbleChatTurn.translation = clean;
+            if (!NativeLiveService.isAiSpeaking()) {
+                currentBubbleChatTurn.translationRevealed = true;
+            }
+            renderBubbleChatCards();
         }
     }
 
-    private void commitBubbleCurrentTurn() {
-        if (currentBubbleTurnRole.isEmpty() || (currentBubbleTurnText.length() == 0 && currentBubbleTurnTranslation.isEmpty())) {
+    private void renderBubbleChatCards() {
+        if (bubbleChatContainer == null) return;
+        bubbleChatContainer.removeAllViews();
+        final boolean en = I18n.isEnglish(context);
+
+        if (bubbleTurnHistory.isEmpty() && currentBubbleChatTurn == null) {
+            TextView emptyTv = new TextView(context);
+            emptyTv.setText(en ? "💬 Dialogue will appear here in cards…" : "💬 對話逐字紀錄與翻譯小抄將以卡片展示…");
+            emptyTv.setTextColor(Color.parseColor("#94A3B8"));
+            emptyTv.setTextSize(12);
+            emptyTv.setPadding(dp(4), dp(4), dp(4), dp(4));
+            bubbleChatContainer.addView(emptyTv);
             return;
         }
-        if (committedTranscriptLog.length() > 0) {
-            committedTranscriptLog.append("\n\n");
+
+        for (BubbleChatTurn turn : bubbleTurnHistory) {
+            bubbleChatContainer.addView(buildBubbleTurnCard(turn, false));
         }
-        boolean isAi = "ai".equals(currentBubbleTurnRole);
-        committedTranscriptLog.append(isAi ? "🤖 導師: " : "🗣️ 你: ");
-        committedTranscriptLog.append(currentBubbleTurnText.toString().trim());
-        if (isAi && !currentBubbleTurnTranslation.isEmpty()) {
-            committedTranscriptLog.append("\n📖 翻譯與小抄：\n").append(currentBubbleTurnTranslation.trim());
+
+        if (currentBubbleChatTurn != null && (currentBubbleChatTurn.spoken.length() > 0 || !currentBubbleChatTurn.translation.isEmpty())) {
+            boolean isSpeaking = NativeLiveService.isAiSpeaking() && "ai".equals(currentBubbleChatTurn.role);
+            bubbleChatContainer.addView(buildBubbleTurnCard(currentBubbleChatTurn, isSpeaking));
         }
-        isCurrentBubbleTranslationRevealed = false;
+
+        if (transcriptScroll != null) {
+            transcriptScroll.post(new Runnable() {
+                @Override public void run() {
+                    if (transcriptScroll != null) {
+                        transcriptScroll.fullScroll(View.FOCUS_DOWN);
+                    }
+                }
+            });
+        }
     }
 
-    private void renderBubbleTranscriptView() {
-        StringBuilder display = new StringBuilder(committedTranscriptLog);
-        if (!currentBubbleTurnRole.isEmpty() && (currentBubbleTurnText.length() > 0 || !currentBubbleTurnTranslation.isEmpty())) {
-            if (display.length() > 0) {
-                display.append("\n\n");
-            }
-            boolean isAi = "ai".equals(currentBubbleTurnRole);
-            display.append(isAi ? "🤖 導師: " : "🗣️ 你: ");
-            String spoken = currentBubbleTurnText.toString();
-            if (spoken.isEmpty() && isAi) {
-                display.append("🎙️ ...");
-            } else {
-                display.append(spoken);
-            }
-            if (isAi && !currentBubbleTurnTranslation.isEmpty() && isCurrentBubbleTranslationRevealed) {
-                display.append("\n📖 翻譯與小抄：\n").append(currentBubbleTurnTranslation);
-            }
+    private View buildBubbleTurnCard(BubbleChatTurn turn, boolean isLiveSpeaking) {
+        boolean isAi = "ai".equals(turn.role);
+        final boolean en = I18n.isEnglish(context);
+
+        LinearLayout card = new LinearLayout(context);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setPadding(dp(10), dp(8), dp(10), dp(8));
+        LinearLayout.LayoutParams cLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        cLp.setMargins(0, 0, 0, dp(8));
+        card.setLayoutParams(cLp);
+
+        GradientDrawable cBg = new GradientDrawable();
+        if (isAi) {
+            cBg.setColor(Color.parseColor("#0F172A")); // Slate 900
+            cBg.setCornerRadii(new float[]{dp(4), dp(4), dp(12), dp(12), dp(12), dp(12), dp(12), dp(12)});
+            cBg.setStroke(dp(1), isLiveSpeaking ? Color.parseColor("#0284C7") : Color.parseColor("#1E293B"));
+        } else {
+            cBg.setColor(Color.parseColor("#1E293B")); // Slate 800
+            cBg.setCornerRadii(new float[]{dp(12), dp(12), dp(4), dp(4), dp(12), dp(12), dp(12), dp(12)});
+            cBg.setStroke(dp(1), Color.parseColor("#334155"));
         }
-        latestTranscript = display.toString();
-        if (transcriptText != null) {
-            transcriptText.setText(latestTranscript);
+        card.setBackground(cBg);
+
+        // Header Row
+        LinearLayout header = new LinearLayout(context);
+        header.setOrientation(LinearLayout.HORIZONTAL);
+        header.setGravity(Gravity.CENTER_VERTICAL);
+
+        TextView roleLabel = new TextView(context);
+        roleLabel.setText(isAi ? (en ? "🤖 AI Tutor" : "🤖 導師") : (en ? "🗣️ You" : "🗣️ 學生"));
+        roleLabel.setTextSize(10);
+        roleLabel.setTextColor(isAi ? Color.parseColor("#38BDF8") : Color.parseColor("#A5B4FC"));
+        roleLabel.setTypeface(Typeface.DEFAULT_BOLD);
+        header.addView(roleLabel, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+
+        if (isLiveSpeaking) {
+            TextView liveBadge = new TextView(context);
+            liveBadge.setText("🔊");
+            liveBadge.setTextSize(9);
+            header.addView(liveBadge);
         }
+        card.addView(header);
+
+        // Spoken content
+        TextView spokenTv = new TextView(context);
+        String spokenStr = turn.spoken.toString().trim();
+        spokenTv.setText(spokenStr.isEmpty() && isAi && isLiveSpeaking ? "🎙️ ..." : spokenStr);
+        spokenTv.setTextSize(13);
+        spokenTv.setTextColor(Color.WHITE);
+        spokenTv.setLineSpacing(dp(2), 1.2f);
+        card.addView(spokenTv);
+
+        // Sub-card (Translation + Vocab + Hints)
+        if (isAi && turn.translationRevealed && (!turn.translation.isEmpty() || !turn.keyVocab.isEmpty() || !turn.hints.isEmpty())) {
+            LinearLayout subCard = new LinearLayout(context);
+            subCard.setOrientation(LinearLayout.VERTICAL);
+            subCard.setPadding(dp(8), dp(6), dp(8), dp(6));
+            GradientDrawable sBg = new GradientDrawable();
+            sBg.setColor(Color.parseColor("#111827"));
+            sBg.setCornerRadius(dp(8));
+            sBg.setStroke(dp(1), Color.parseColor("#1F2937"));
+            subCard.setBackground(sBg);
+            LinearLayout.LayoutParams scLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            scLp.setMargins(0, dp(6), 0, 0);
+            subCard.setLayoutParams(scLp);
+
+            if (!turn.translation.isEmpty()) {
+                TextView tText = new TextView(context);
+                tText.setText("📖 " + turn.translation);
+                tText.setTextSize(12);
+                tText.setTextColor(Color.parseColor("#93C5FD"));
+                subCard.addView(tText);
+            }
+
+            if (!turn.keyVocab.isEmpty()) {
+                TextView vText = new TextView(context);
+                vText.setText("💡 " + turn.keyVocab);
+                vText.setTextSize(11);
+                vText.setTextColor(Color.parseColor("#FDE047"));
+                LinearLayout.LayoutParams vtLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                vtLp.setMargins(0, dp(4), 0, 0);
+                subCard.addView(vText, vtLp);
+            }
+
+            if (!turn.hints.isEmpty()) {
+                TextView hTitle = new TextView(context);
+                hTitle.setText(en ? "💬 Hints:" : "💬 建議小抄：");
+                hTitle.setTextSize(10);
+                hTitle.setTextColor(Color.parseColor("#34D399"));
+                hTitle.setTypeface(Typeface.DEFAULT_BOLD);
+                LinearLayout.LayoutParams htLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                htLp.setMargins(0, dp(4), 0, dp(2));
+                subCard.addView(hTitle, htLp);
+
+                for (String hint : turn.hints) {
+                    TextView pText = new TextView(context);
+                    pText.setText("• " + hint);
+                    pText.setTextSize(11);
+                    pText.setTextColor(Color.parseColor("#E0E7FF"));
+                    pText.setPadding(0, 0, 0, dp(2));
+                    subCard.addView(pText);
+                }
+            }
+
+            card.addView(subCard);
+        }
+
+        return card;
     }
 
     public void updateMicrophoneMeter(final double dbfs, final boolean sending) {

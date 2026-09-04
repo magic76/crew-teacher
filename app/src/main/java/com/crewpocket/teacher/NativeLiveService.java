@@ -142,6 +142,15 @@ public class NativeLiveService extends Service {
                     }
 
                     @Override
+                    public void onSubtitleData(final String targetText, final String nativeTranslation, final String keyVocab, final java.util.List<String> suggestedReplies) {
+                        handler.post(new Runnable() {
+                            @Override public void run() {
+                                FloatingBubbleManager.getInstance(NativeLiveService.this).applyStructuredSubtitleData(targetText, nativeTranslation, keyVocab, suggestedReplies);
+                            }
+                        });
+                    }
+
+                    @Override
                     public void onMicrophoneLevel(final double dbfs, final double gateDbfs, final boolean sending) {
                         handler.post(new Runnable() {
                             @Override public void run() {

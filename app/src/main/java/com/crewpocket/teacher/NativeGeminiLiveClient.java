@@ -40,6 +40,7 @@ public class NativeGeminiLiveClient {
         void onStatus(String status);
         void onStopped(String reason);
         void onTranscript(String text, String role);
+        default void onSubtitleData(String targetText, String nativeTranslation, String keyVocab, java.util.List<String> suggestedReplies) {}
         void onMicrophoneLevel(double dbfs, double gateDbfs, boolean sending);
         void onSpeakingChanged(boolean speaking);
     }
@@ -348,6 +349,22 @@ public class NativeGeminiLiveClient {
                                 String targetText = args.optString("target_text", "").trim();
                                 String nativeTrans = args.optString("native_translation", "").trim();
                                 String keyVocab = args.optString("key_vocab", "").trim();
+                                java.util.List<String> hintsList = new java.util.ArrayList<String>();
+
+                                JSONArray hints = args.optJSONArray("suggested_replies");
+                                if (hints != null && hints.length() > 0) {
+                                    for (int h = 0; h < hints.length(); h++) {
+                                        String hint = hints.optString(h, "").trim();
+                                        if (!hint.isEmpty()) {
+                                            hintsList.add(hint);
+                                        }
+                                    }
+                                } else {
+                                    String singleHint = args.optString("suggested_replies", "").trim();
+                                    if (!singleHint.isEmpty()) {
+                                        hintsList.add(singleHint);
+                                    }
+                                }
 
                                 StringBuilder sb = new StringBuilder();
                                 if (!nativeTrans.isEmpty()) {
@@ -357,37 +374,27 @@ public class NativeGeminiLiveClient {
                                     if (sb.length() > 0) sb.append("\n");
                                     sb.append("💡 單字/句型：").append(keyVocab);
                                 }
-
-                                JSONArray hints = args.optJSONArray("suggested_replies");
-                                if (hints != null && hints.length() > 0) {
+                                if (!hintsList.isEmpty()) {
                                     if (sb.length() > 0) sb.append("\n💬 建議回答小抄：");
-                                    for (int h = 0; h < hints.length(); h++) {
-                                        String hint = hints.optString(h, "").trim();
-                                        if (!hint.isEmpty()) {
-                                            sb.append("\n  • ").append(hint);
-                                        }
-                                    }
-                                } else {
-                                    String singleHint = args.optString("suggested_replies", "").trim();
-                                    if (!singleHint.isEmpty()) {
-                                        if (sb.length() > 0) sb.append("\n💬 建議回答小抄：\n  • ").append(singleHint);
+                                    for (String hint : hintsList) {
+                                        sb.append("\n  • ").append(hint);
                                     }
                                 }
 
                                 if (sb.length() > 0) {
+                                    listener.onSubtitleData(targetText, nativeTrans, keyVocab, hintsList);
                                     listener.onTranscript(sb.toString(), "translation");
                                 }
                             }
-                            JSONObject res = new JSONObject().put("success", true)
-                                    .put("reminder", "MANDATORY: Always call display_bilingual_subtitle in every turn.");
+                            JSONObject res = new JSONObject().put("status", "displayed");
                             sendToolResponse(id, name, res);
                         } else if ("end_voice_session".equals(name)) {
-                            sendToolResponse(id, name, new JSONObject().put("success", true).put("message", "對話已結束"));
+                            sendToolResponse(id, name, new JSONObject().put("status", "ended"));
                             interruptionHandler.postDelayed(new Runnable() {
                                 @Override public void run() { stop(); }
                             }, 500);
                         } else {
-                            sendToolResponse(id, name, new JSONObject().put("success", true));
+                            sendToolResponse(id, name, new JSONObject().put("status", "ok"));
                         }
                     }
                 }
@@ -591,10 +598,10 @@ public class NativeGeminiLiveClient {
                 + "  • [Reply Option 1 in " + practiceLang + "] ([translation in " + targetLang + "])\n"
                 + "  • [Reply Option 2 in " + practiceLang + "] ([translation in " + targetLang + "])\n\n"
                 + "Output ONLY this formatted text without any markdown bolding, greetings, or extra explanations.";
-        tryTranslateAt(0, prompt);
+        tryTranslateAt(0, sourceText, prompt);
     }
 
-    private void tryTranslateAt(final int modelIdx, final String prompt) {
+    private void tryTranslateAt(final int modelIdx, final String sourceText, final String prompt) {
         if (modelIdx >= TRANSLATION_MODELS.length) {
             Log.e(TAG, "All translation models failed for prompt");
             return;
@@ -617,7 +624,7 @@ public class NativeGeminiLiveClient {
             httpClient.newCall(req).enqueue(new okhttp3.Callback() {
                 @Override public void onFailure(okhttp3.Call call, java.io.IOException e) {
                     Log.w(TAG, "Translation model " + model + " failed: " + e.getMessage());
-                    tryTranslateAt(modelIdx + 1, prompt);
+                    tryTranslateAt(modelIdx + 1, sourceText, prompt);
                 }
                 @Override public void onResponse(okhttp3.Call call, Response response) throws java.io.IOException {
                     try {
@@ -635,6 +642,21 @@ public class NativeGeminiLiveClient {
                                             translation = translation.substring(1, translation.length() - 1).trim();
                                         }
                                         if (!translation.isEmpty()) {
+                                            String mainTrans = translation;
+                                            java.util.List<String> hints = new java.util.ArrayList<String>();
+                                            if (translation.contains("💬 建議回答小抄：")) {
+                                                String[] split = translation.split("💬 建議回答小抄：");
+                                                mainTrans = split[0].trim();
+                                                if (split.length > 1) {
+                                                    String[] lines = split[1].split("\n");
+                                                    for (String line : lines) {
+                                                        String h = line.replace("•", "").trim();
+                                                        if (h.startsWith("-")) h = h.substring(1).trim();
+                                                        if (!h.isEmpty()) hints.add(h);
+                                                    }
+                                                }
+                                            }
+                                            listener.onSubtitleData(sourceText, mainTrans, "", hints);
                                             listener.onTranscript(translation, "translation");
                                             return;
                                         }
@@ -646,12 +668,12 @@ public class NativeGeminiLiveClient {
                     } catch (Exception e) {
                         Log.w(TAG, "Translation parse error for " + model + ": " + e.getMessage());
                     }
-                    tryTranslateAt(modelIdx + 1, prompt);
+                    tryTranslateAt(modelIdx + 1, sourceText, prompt);
                 }
             });
         } catch (Exception e) {
             Log.e(TAG, "tryTranslateAt error: " + e.getMessage());
-            tryTranslateAt(modelIdx + 1, prompt);
+            tryTranslateAt(modelIdx + 1, sourceText, prompt);
         }
     }
 
