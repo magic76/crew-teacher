@@ -253,9 +253,14 @@ public class MainActivity extends Activity {
 
             String readingSnippet = AppConfig.getReadingText(this);
             TextView rText = new TextView(this);
-            rText.setText("\"" + readingSnippet + "\"");
+            if (readingSnippet.isEmpty()) {
+                rText.setText(en ? "⚪ (No reading text yet. Tap to generate with AI or paste custom text)" : "⚪ (尚未設定文章，點擊此處由 AI 生成或自訂貼上)");
+                rText.setTextColor(Color.parseColor("#94A3B8"));
+            } else {
+                rText.setText("\"" + readingSnippet + "\"");
+                rText.setTextColor(Color.parseColor("#E2E8F0"));
+            }
             rText.setTextSize(11);
-            rText.setTextColor(Color.parseColor("#E2E8F0"));
             rText.setMaxLines(3);
             rText.setEllipsize(TextUtils.TruncateAt.END);
             rText.setPadding(0, dp(4), 0, 0);
@@ -705,7 +710,11 @@ public class MainActivity extends Activity {
         builder.setTitle(en ? "🌐 Target Practice Language" : "🌐 選擇練習目標語言");
         builder.setItems(items, new DialogInterface.OnClickListener() {
             @Override public void onClick(DialogInterface dialog, int which) {
-                AppConfig.setTutorLanguage(MainActivity.this, values[which]);
+                String oldLang = AppConfig.getTutorLanguage(MainActivity.this);
+                if (!values[which].equalsIgnoreCase(oldLang)) {
+                    AppConfig.setTutorLanguage(MainActivity.this, values[which]);
+                    AppConfig.setReadingText(MainActivity.this, "");
+                }
                 renderHomePage();
                 Toast.makeText(MainActivity.this, (en ? "Practice language set to: " : "已設定練習語言：") + items[which], Toast.LENGTH_SHORT).show();
             }
@@ -853,9 +862,12 @@ public class MainActivity extends Activity {
 
     private void showCustomReadingInputDialog() {
         final boolean en = I18n.isEnglish(this);
+        String currentLang = AppConfig.getTutorLanguage(this);
+        String langLabel = getLanguageLabel(currentLang);
+
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        builder.setTitle(en ? "✏️ Custom Reading Text" : "✏️ 自訂朗讀文章");
-        builder.setMessage(en ? "Paste or enter the English passage you want to practice reading aloud:" : "請輸入或貼上您想大聲朗讀練習的英文短文：");
+        builder.setTitle(en ? ("✏️ Custom Reading Text (" + langLabel + ")") : ("✏️ 自訂「" + langLabel + "」朗讀短文"));
+        builder.setMessage(en ? ("Paste or enter the " + langLabel + " passage you want to practice reading aloud:") : ("請輸入或貼上您想大聲朗讀練習的「" + langLabel + "」文章："));
 
         LinearLayout layout = new LinearLayout(this);
         layout.setOrientation(LinearLayout.VERTICAL);
@@ -863,7 +875,7 @@ public class MainActivity extends Activity {
 
         final EditText input = new EditText(this);
         input.setText(AppConfig.getReadingText(this));
-        input.setHint("Paste English text here...");
+        input.setHint(en ? ("Paste " + langLabel + " text here...") : ("在此貼上「" + langLabel + "」練習短文…"));
         input.setTextColor(Color.WHITE);
         input.setTextSize(13);
         input.setMinLines(4);

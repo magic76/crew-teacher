@@ -24,7 +24,7 @@ public class AppConfig {
     public static final String DEFAULT_PERSONA = "daily"; // daily, travel, business, exam, friendly
     public static final String DEFAULT_UI_LANG = "zh"; // zh, en
     public static final String DEFAULT_TEACHING_MODE = "bilingual"; // beginner (零基礎引導), bilingual (雙語對照), immersion (全外語沉浸), shadowing (朗讀糾音教練)
-    public static final String DEFAULT_READING_TEXT = "Although he was exhausted from thorough research throughout the night, the subtle photographer comfortably climbed the mountain to capture the scenic view with incredible depth and clarity.";
+    public static final String DEFAULT_READING_TEXT = "";
 
     public static SharedPreferences getPrefs(Context context) {
         return context.getApplicationContext().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
@@ -121,9 +121,9 @@ public class AppConfig {
 
     // ── 3.5 Reading Material for Shadowing / Pronunciation Coach ──
     public static String getReadingText(Context context) {
-        if (context == null) return DEFAULT_READING_TEXT;
-        String text = getPrefs(context).getString(KEY_READING_TEXT, DEFAULT_READING_TEXT);
-        return (text == null || text.trim().isEmpty()) ? DEFAULT_READING_TEXT : text.trim();
+        if (context == null) return "";
+        String text = getPrefs(context).getString(KEY_READING_TEXT, "");
+        return text == null ? "" : text.trim();
     }
 
     public static void setReadingText(Context context, String text) {

@@ -1,6 +1,7 @@
 package com.crewpocket.teacher;
 
 import android.app.Activity;
+import android.content.Context;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.graphics.Typeface;
@@ -22,6 +23,7 @@ import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
@@ -195,13 +197,31 @@ public class NativeLiveActivity extends Activity {
                     triggerAiNewPassage();
                 }
             });
-            LinearLayout.LayoutParams aLp = new LinearLayout.LayoutParams(dp(76), dp(32));
-            aLp.setMargins(0, 0, dp(6), 0);
+            LinearLayout.LayoutParams aLp = new LinearLayout.LayoutParams(dp(72), dp(32));
+            aLp.setMargins(0, 0, dp(4), 0);
             bHeader.addView(aiGenBtn, aLp);
+
+            // ✏️ Custom Passage Button
+            Button customBtn = new Button(this);
+            customBtn.setText(en ? "✏️ Custom" : "✏️ 自訂");
+            customBtn.setTextSize(11);
+            customBtn.setTextColor(Color.WHITE);
+            GradientDrawable cBg = new GradientDrawable();
+            cBg.setColor(Color.parseColor("#0D9488"));
+            cBg.setCornerRadius(dp(8));
+            customBtn.setBackground(cBg);
+            customBtn.setOnClickListener(new View.OnClickListener() {
+                @Override public void onClick(View v) {
+                    showCustomReadingDialog();
+                }
+            });
+            LinearLayout.LayoutParams cLp = new LinearLayout.LayoutParams(dp(68), dp(32));
+            cLp.setMargins(0, 0, dp(4), 0);
+            bHeader.addView(customBtn, cLp);
 
             // Reset / Restart Button
             Button resetBtn = new Button(this);
-            resetBtn.setText(en ? "🔄 Restart" : "🔄 重新朗讀");
+            resetBtn.setText(en ? "🔄 Restart" : "🔄 重新");
             resetBtn.setTextSize(11);
             resetBtn.setTextColor(Color.WHITE);
             GradientDrawable rBg = new GradientDrawable();
@@ -214,7 +234,7 @@ public class NativeLiveActivity extends Activity {
                     Toast.makeText(NativeLiveActivity.this, en ? "Reading board reset! Start reading from beginning." : "已重置朗讀板！請隨時從頭開口朗讀。", Toast.LENGTH_SHORT).show();
                 }
             });
-            bHeader.addView(resetBtn, new LinearLayout.LayoutParams(dp(80), dp(32)));
+            bHeader.addView(resetBtn, new LinearLayout.LayoutParams(dp(68), dp(32)));
             boardCard.addView(bHeader);
 
             // Legend Row
@@ -383,6 +403,12 @@ public class NativeLiveActivity extends Activity {
 
         root.addView(controls);
         setContentView(root);
+
+        if (isShadowingMode && (fullReadingText == null || fullReadingText.trim().isEmpty())) {
+            if (!AppConfig.getGeminiApiKey(this).isEmpty()) {
+                triggerAiNewPassage();
+            }
+        }
     }
 
     private View makeLegendDot(String colorHex, String label) {
@@ -407,13 +433,17 @@ public class NativeLiveActivity extends Activity {
 
     private void setupReadingData() {
         if (fullReadingText == null || fullReadingText.trim().isEmpty()) {
-            fullReadingText = AppConfig.DEFAULT_READING_TEXT;
+            rawWords = new String[0];
+            cleanWords = new String[0];
+            wordStates = new int[0];
+            spokenTokenHistory.clear();
+            return;
         }
         rawWords = fullReadingText.trim().split("\\s+");
         cleanWords = new String[rawWords.length];
         wordStates = new int[rawWords.length];
         for (int i = 0; i < rawWords.length; i++) {
-            cleanWords[i] = rawWords[i].replaceAll("[^a-zA-Z0-9]", "").toLowerCase();
+            cleanWords[i] = rawWords[i].replaceAll("[^a-zA-Z0-9\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uac00-\ud7af]", "").toLowerCase();
             wordStates[i] = 0; // pending
         }
         spokenTokenHistory.clear();
@@ -444,7 +474,12 @@ public class NativeLiveActivity extends Activity {
     }
 
     private void renderReadingBoardSpannable() {
-        if (readingBoardText == null || rawWords == null) return;
+        if (readingBoardText == null) return;
+        if (rawWords == null || rawWords.length == 0) {
+            boolean en = I18n.isEnglish(this);
+            readingBoardText.setText(en ? "⚪ (No reading passage loaded. Tap '✨ AI New' or '✏️ Custom' above)" : "⚪ (尚未載入朗讀教材，請點擊上方「✨ 換一篇」或「✏️ 自訂」)");
+            return;
+        }
         SpannableStringBuilder ssb = new SpannableStringBuilder();
 
         for (int i = 0; i < rawWords.length; i++) {
@@ -976,6 +1011,77 @@ public class NativeLiveActivity extends Activity {
                 AppConfig.setGeminiApiKey(NativeLiveActivity.this, key);
                 if (!key.isEmpty()) {
                     startClient();
+                }
+            }
+        });
+        builder.setNegativeButton(en ? "Cancel" : "取消", null);
+        builder.show();
+    }
+
+    private void showCustomReadingDialog() {
+        final boolean en = I18n.isEnglish(this);
+        String currentLang = AppConfig.getTutorLanguage(this);
+        String langLabel = MainActivity.getLanguageLabel(currentLang);
+
+        android.app.AlertDialog.Builder builder = new android.app.AlertDialog.Builder(this);
+        builder.setTitle(en ? ("✏️ Custom Reading Text (" + langLabel + ")") : ("✏️ 自訂「" + langLabel + "」朗讀文章"));
+        builder.setMessage(en ? ("Paste or enter the " + langLabel + " passage you want to practice:") : ("請輸入或貼上您想練習朗讀的「" + langLabel + "」短文："));
+
+        LinearLayout layout = new LinearLayout(this);
+        layout.setOrientation(LinearLayout.VERTICAL);
+        layout.setPadding(dp(16), dp(8), dp(16), dp(8));
+
+        final EditText input = new EditText(this);
+        input.setText(fullReadingText);
+        input.setHint(en ? ("Paste " + langLabel + " text here...") : ("在此貼上「" + langLabel + "」文章…"));
+        input.setTextColor(Color.WHITE);
+        input.setTextSize(13);
+        input.setMinLines(4);
+        input.setGravity(Gravity.TOP);
+        input.setPadding(dp(12), dp(10), dp(12), dp(10));
+        GradientDrawable iBg = new GradientDrawable();
+        iBg.setColor(Color.parseColor("#1E293B"));
+        iBg.setCornerRadius(dp(10));
+        input.setBackground(iBg);
+        layout.addView(input);
+
+        Button pasteBtn = new Button(this);
+        pasteBtn.setText(en ? "📋 Paste from Clipboard" : "📋 從剪貼簿貼上");
+        pasteBtn.setTextSize(11);
+        pasteBtn.setTextColor(Color.WHITE);
+        GradientDrawable pBg = new GradientDrawable();
+        pBg.setColor(Color.parseColor("#334155"));
+        pBg.setCornerRadius(dp(8));
+        pasteBtn.setBackground(pBg);
+        pasteBtn.setOnClickListener(new View.OnClickListener() {
+            @Override public void onClick(View v) {
+                try {
+                    android.content.ClipboardManager cm = (android.content.ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+                    if (cm != null && cm.hasPrimaryClip() && cm.getPrimaryClip().getItemCount() > 0) {
+                        CharSequence clip = cm.getPrimaryClip().getItemAt(0).getText();
+                        if (clip != null) {
+                            input.setText(clip.toString().trim());
+                            Toast.makeText(NativeLiveActivity.this, en ? "Pasted" : "已貼上", Toast.LENGTH_SHORT).show();
+                        }
+                    }
+                } catch (Exception ignored) {}
+            }
+        });
+        LinearLayout.LayoutParams pLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(34));
+        pLp.setMargins(0, dp(6), 0, 0);
+        layout.addView(pasteBtn, pLp);
+
+        builder.setView(layout);
+        builder.setPositiveButton(en ? "Save & Apply" : "套用文章", new android.content.DialogInterface.OnClickListener() {
+            @Override public void onClick(android.content.DialogInterface dialog, int which) {
+                String custom = input.getText().toString().trim();
+                if (!custom.isEmpty()) {
+                    AppConfig.setReadingText(NativeLiveActivity.this, custom);
+                    fullReadingText = custom;
+                    setupReadingData();
+                    renderReadingBoardSpannable();
+                    resetReadingBoard();
+                    Toast.makeText(NativeLiveActivity.this, en ? "Custom reading text applied!" : "已套用自訂朗讀文章！", Toast.LENGTH_SHORT).show();
                 }
             }
         });
