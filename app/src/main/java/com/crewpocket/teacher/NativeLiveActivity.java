@@ -321,7 +321,6 @@ public class NativeLiveActivity extends Activity {
 
         if ("translation".equalsIgnoreCase(role)) {
             transcript.setText(existing + "\n📖 翻譯：" + text);
-            lastTranscriptRole = "";
             return;
         }
 

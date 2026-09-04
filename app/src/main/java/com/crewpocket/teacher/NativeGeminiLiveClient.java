@@ -278,10 +278,12 @@ public class NativeGeminiLiveClient {
 
                 JSONObject outputTranscript = server.optJSONObject("outputTranscription");
                 if (outputTranscript == null) outputTranscript = server.optJSONObject("output_transcription");
+                boolean hasOutputTranscript = false;
                 if (outputTranscript != null && !outputTranscript.optString("text").isEmpty()) {
                     String t = outputTranscript.optString("text");
                     currentAiTurnText.append(t);
                     listener.onTranscript(t, "ai");
+                    hasOutputTranscript = true;
                 }
 
                 JSONObject turn = server.optJSONObject("modelTurn");
@@ -295,16 +297,15 @@ public class NativeGeminiLiveClient {
                     if (parts != null) {
                         for (int i = 0; i < parts.length(); i++) {
                             JSONObject part = parts.getJSONObject(i);
-                            if (part.has("text")) {
-                                String t = part.getString("text");
-                                currentAiTurnText.append(t);
-                                listener.onTranscript(t, "ai");
-                            }
                             JSONObject inline = part.optJSONObject("inlineData");
                             if (inline == null) inline = part.optJSONObject("inline_data");
                             if (inline != null && "audio/pcm;rate=24000".equals(inline.optString("mimeType"))) {
                                 byte[] pcm = Base64.decode(inline.getString("data"), Base64.DEFAULT);
                                 enqueueAudio(pcm);
+                            } else if (part.has("text") && !hasOutputTranscript) {
+                                String t = part.getString("text");
+                                currentAiTurnText.append(t);
+                                listener.onTranscript(t, "ai");
                             }
                         }
                     }
@@ -473,7 +474,7 @@ public class NativeGeminiLiveClient {
         if ("zh".equalsIgnoreCase(tutorLang) && !isUiEn) {
             targetLang = "English";
         }
-        final String prompt = "Translate the following speech text into natural, concise " + targetLang + ".\n"
+        final String prompt = "Translate the following spoken sentence into natural, fluent " + targetLang + ".\n"
                 + "Output ONLY the direct translation text with no markdown formatting, no explanations, and no quotes:\n\n" + sourceText;
         try {
             JSONObject root = new JSONObject();
@@ -481,11 +482,13 @@ public class NativeGeminiLiveClient {
             JSONArray contents = new JSONArray().put(new JSONObject().put("parts", parts));
             root.put("contents", contents);
 
-            String url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + apiKey;
+            String url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=" + apiKey;
             RequestBody body = RequestBody.create(MediaType.parse("application/json; charset=utf-8"), root.toString());
             Request req = new Request.Builder().url(url).post(body).build();
             httpClient.newCall(req).enqueue(new okhttp3.Callback() {
-                @Override public void onFailure(okhttp3.Call call, java.io.IOException e) {}
+                @Override public void onFailure(okhttp3.Call call, java.io.IOException e) {
+                    Log.e(TAG, "Translation request failed: " + e.getMessage());
+                }
                 @Override public void onResponse(okhttp3.Call call, Response response) throws java.io.IOException {
                     try {
                         if (response.isSuccessful() && response.body() != null) {
@@ -504,8 +507,12 @@ public class NativeGeminiLiveClient {
                                     }
                                 }
                             }
+                        } else {
+                            Log.e(TAG, "Translation HTTP error: " + response.code() + " " + response.message());
                         }
-                    } catch (Exception ignored) {}
+                    } catch (Exception e) {
+                        Log.e(TAG, "Translation parse error: " + e.getMessage());
+                    }
                 }
             });
         } catch (Exception ignored) {}
