@@ -955,27 +955,94 @@ public class NativeLiveActivity extends Activity {
         statusText.setText(text);
     }
 
-    private String lastTranscriptRole = "";
+    private final StringBuilder committedTranscript = new StringBuilder();
+    private String currentTurnRole = "";
+    private final StringBuilder currentTurnText = new StringBuilder();
+    private String currentTurnTranslation = "";
 
     private void appendLiveTranscript(String text, String role) {
         if (transcript == null || text == null || text.isEmpty()) return;
-        String existing = transcript.getText().toString();
-        if (existing.startsWith("點擊下方「開始口語對話」") || existing.startsWith("Tap 'Start")) {
-            existing = "";
-        }
 
         if ("translation".equalsIgnoreCase(role)) {
-            transcript.setText(existing + "\n📖 翻譯：" + text);
+            applyTranslation(text);
             return;
         }
 
         boolean isAi = "ai".equalsIgnoreCase(role) || "Gemini".equalsIgnoreCase(role);
         String roleKey = isAi ? "ai" : "user";
-        boolean sameSpeaker = roleKey.equals(lastTranscriptRole) && !existing.isEmpty();
 
-        String prefix = sameSpeaker ? "" : (existing.isEmpty() ? "" : "\n\n") + (isAi ? "🤖 導師: " : "🗣️ 你: ");
-        lastTranscriptRole = roleKey;
-        transcript.setText(existing + prefix + text);
+        if (!roleKey.equals(currentTurnRole)) {
+            commitCurrentTurn();
+            currentTurnRole = roleKey;
+            currentTurnText.setLength(0);
+            currentTurnTranslation = "";
+        }
+
+        currentTurnText.append(text);
+        renderTranscriptView();
+    }
+
+    private void applyTranslation(String text) {
+        if (text == null || text.trim().isEmpty()) return;
+        String clean = text.trim();
+        if ("ai".equals(currentTurnRole)) {
+            currentTurnTranslation = clean;
+            renderTranscriptView();
+        } else {
+            // If previous turn in history was AI without translation, append underneath it
+            int lastAiIdx = committedTranscript.lastIndexOf("🤖 導師: ");
+            if (lastAiIdx != -1) {
+                int lastTransIdx = committedTranscript.lastIndexOf("📖 翻譯：");
+                if (lastTransIdx < lastAiIdx) {
+                    committedTranscript.append("\n📖 翻譯：").append(clean);
+                    renderTranscriptView();
+                    return;
+                }
+            }
+            // Otherwise start new AI turn with buffered translation
+            commitCurrentTurn();
+            currentTurnRole = "ai";
+            currentTurnText.setLength(0);
+            currentTurnTranslation = clean;
+            renderTranscriptView();
+        }
+    }
+
+    private void commitCurrentTurn() {
+        if (currentTurnRole.isEmpty() || (currentTurnText.length() == 0 && currentTurnTranslation.isEmpty())) {
+            return;
+        }
+        if (committedTranscript.length() > 0) {
+            committedTranscript.append("\n\n");
+        }
+        boolean isAi = "ai".equals(currentTurnRole);
+        committedTranscript.append(isAi ? "🤖 導師: " : "🗣️ 你: ");
+        committedTranscript.append(currentTurnText.toString().trim());
+        if (isAi && !currentTurnTranslation.isEmpty()) {
+            committedTranscript.append("\n📖 翻譯：").append(currentTurnTranslation.trim());
+        }
+    }
+
+    private void renderTranscriptView() {
+        if (transcript == null) return;
+        StringBuilder display = new StringBuilder(committedTranscript);
+        if (!currentTurnRole.isEmpty() && (currentTurnText.length() > 0 || !currentTurnTranslation.isEmpty())) {
+            if (display.length() > 0) {
+                display.append("\n\n");
+            }
+            boolean isAi = "ai".equals(currentTurnRole);
+            display.append(isAi ? "🤖 導師: " : "🗣️ 你: ");
+            String spoken = currentTurnText.toString();
+            if (spoken.isEmpty() && isAi) {
+                display.append("🎙️ ...");
+            } else {
+                display.append(spoken);
+            }
+            if (isAi && !currentTurnTranslation.isEmpty()) {
+                display.append("\n📖 翻譯：").append(currentTurnTranslation);
+            }
+        }
+        transcript.setText(display.toString());
     }
 
     private void showApiKeyDialog() {

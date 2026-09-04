@@ -514,41 +514,100 @@ public class FloatingBubbleManager {
         });
     }
 
-    private String currentTurnRole = "";
-    private final StringBuilder fullTranscriptLog = new StringBuilder();
+    private final StringBuilder committedTranscriptLog = new StringBuilder();
+    private String currentBubbleTurnRole = "";
+    private final StringBuilder currentBubbleTurnText = new StringBuilder();
+    private String currentBubbleTurnTranslation = "";
 
     public void appendTranscript(final String text, final String role) {
         mainHandler.post(new Runnable() {
             @Override public void run() {
                 if (text == null || text.isEmpty()) return;
+
                 if ("translation".equalsIgnoreCase(role)) {
-                    fullTranscriptLog.append("\n📖 翻譯：").append(text);
-                    latestTranscript = fullTranscriptLog.toString();
-                    if (transcriptText != null) {
-                        transcriptText.setText(latestTranscript);
-                    }
-                    currentTurnRole = "";
+                    applyBubbleTranslation(text);
                     return;
                 }
 
                 boolean isAi = "ai".equalsIgnoreCase(role) || "Gemini".equalsIgnoreCase(role);
                 String roleKey = isAi ? "ai" : "user";
-                String prefix = isAi ? "🤖 導師: " : "🗣️ 你: ";
 
-                if (!roleKey.equals(currentTurnRole)) {
-                    currentTurnRole = roleKey;
-                    if (fullTranscriptLog.length() > 0) {
-                        fullTranscriptLog.append("\n\n");
-                    }
-                    fullTranscriptLog.append(prefix);
+                if (!roleKey.equals(currentBubbleTurnRole)) {
+                    commitBubbleCurrentTurn();
+                    currentBubbleTurnRole = roleKey;
+                    currentBubbleTurnText.setLength(0);
+                    currentBubbleTurnTranslation = "";
                 }
-                fullTranscriptLog.append(text);
-                latestTranscript = fullTranscriptLog.toString();
-                if (transcriptText != null) {
-                    transcriptText.setText(latestTranscript);
-                }
+
+                currentBubbleTurnText.append(text);
+                renderBubbleTranscriptView();
             }
         });
+    }
+
+    private void applyBubbleTranslation(String text) {
+        if (text == null || text.trim().isEmpty()) return;
+        String clean = text.trim();
+        if ("ai".equals(currentBubbleTurnRole)) {
+            currentBubbleTurnTranslation = clean;
+            renderBubbleTranscriptView();
+        } else {
+            // If previous turn in history was AI without translation, append underneath it
+            int lastAiIdx = committedTranscriptLog.lastIndexOf("🤖 導師: ");
+            if (lastAiIdx != -1) {
+                int lastTransIdx = committedTranscriptLog.lastIndexOf("📖 翻譯：");
+                if (lastTransIdx < lastAiIdx) {
+                    committedTranscriptLog.append("\n📖 翻譯：").append(clean);
+                    renderBubbleTranscriptView();
+                    return;
+                }
+            }
+            // Otherwise start new AI turn with buffered translation
+            commitBubbleCurrentTurn();
+            currentBubbleTurnRole = "ai";
+            currentBubbleTurnText.setLength(0);
+            currentBubbleTurnTranslation = clean;
+            renderBubbleTranscriptView();
+        }
+    }
+
+    private void commitBubbleCurrentTurn() {
+        if (currentBubbleTurnRole.isEmpty() || (currentBubbleTurnText.length() == 0 && currentBubbleTurnTranslation.isEmpty())) {
+            return;
+        }
+        if (committedTranscriptLog.length() > 0) {
+            committedTranscriptLog.append("\n\n");
+        }
+        boolean isAi = "ai".equals(currentBubbleTurnRole);
+        committedTranscriptLog.append(isAi ? "🤖 導師: " : "🗣️ 你: ");
+        committedTranscriptLog.append(currentBubbleTurnText.toString().trim());
+        if (isAi && !currentBubbleTurnTranslation.isEmpty()) {
+            committedTranscriptLog.append("\n📖 翻譯：").append(currentBubbleTurnTranslation.trim());
+        }
+    }
+
+    private void renderBubbleTranscriptView() {
+        StringBuilder display = new StringBuilder(committedTranscriptLog);
+        if (!currentBubbleTurnRole.isEmpty() && (currentBubbleTurnText.length() > 0 || !currentBubbleTurnTranslation.isEmpty())) {
+            if (display.length() > 0) {
+                display.append("\n\n");
+            }
+            boolean isAi = "ai".equals(currentBubbleTurnRole);
+            display.append(isAi ? "🤖 導師: " : "🗣️ 你: ");
+            String spoken = currentBubbleTurnText.toString();
+            if (spoken.isEmpty() && isAi) {
+                display.append("🎙️ ...");
+            } else {
+                display.append(spoken);
+            }
+            if (isAi && !currentBubbleTurnTranslation.isEmpty()) {
+                display.append("\n📖 翻譯：").append(currentBubbleTurnTranslation);
+            }
+        }
+        latestTranscript = display.toString();
+        if (transcriptText != null) {
+            transcriptText.setText(latestTranscript);
+        }
     }
 
     public void updateMicrophoneMeter(final double dbfs, final boolean sending) {
