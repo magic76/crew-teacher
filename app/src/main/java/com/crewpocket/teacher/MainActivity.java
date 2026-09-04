@@ -204,7 +204,8 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams lp2 = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
         lp2.setMargins(gap, 0, gap, 0);
         String modeShort = "beginner".equals(currentTeachingMode) ? (en ? "Beginner" : "零基礎帶讀")
-                : ("immersion".equals(currentTeachingMode) ? (en ? "Immersion" : "全外語沉浸") : (en ? "Bilingual" : "雙語對照"));
+                : ("immersion".equals(currentTeachingMode) ? (en ? "Immersion" : "全外語沉浸")
+                : ("shadowing".equals(currentTeachingMode) ? (en ? "Reading Coach" : "朗讀糾音") : (en ? "Bilingual" : "雙語對照")));
         capsuleRow.addView(makePodItem("💡", modeShort, en ? "Method" : "教學引導", Color.parseColor("#F59E0B"), new View.OnClickListener() {
             @Override public void onClick(View v) { showTeachingModeDialog(); }
         }), lp2);
@@ -218,6 +219,55 @@ public class MainActivity extends Activity {
         }), lp3);
 
         lessonPod.addView(capsuleRow);
+
+        if ("shadowing".equals(currentTeachingMode)) {
+            LinearLayout readingCard = new LinearLayout(this);
+            readingCard.setOrientation(LinearLayout.VERTICAL);
+            readingCard.setPadding(dp(12), dp(10), dp(12), dp(10));
+            GradientDrawable rBg = new GradientDrawable();
+            rBg.setColor(Color.parseColor("#1E1B4B"));
+            rBg.setCornerRadius(dp(12));
+            rBg.setStroke(dp(1), Color.parseColor("#6366F1"));
+            readingCard.setBackground(rBg);
+            LinearLayout.LayoutParams rLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            rLp.setMargins(0, dp(10), 0, 0);
+            readingCard.setLayoutParams(rLp);
+
+            LinearLayout rHeader = new LinearLayout(this);
+            rHeader.setOrientation(LinearLayout.HORIZONTAL);
+            rHeader.setGravity(Gravity.CENTER_VERTICAL);
+
+            TextView rTitle = new TextView(this);
+            rTitle.setText(en ? "📖 Reading Material (Tap to change)" : "📖 朗讀文章 (點擊可切換/貼上)");
+            rTitle.setTextSize(11);
+            rTitle.setTextColor(Color.parseColor("#A5B4FC"));
+            rTitle.setTypeface(Typeface.DEFAULT_BOLD);
+            rHeader.addView(rTitle, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+
+            TextView rEdit = new TextView(this);
+            rEdit.setText(en ? "✏️ Choose Text" : "✏️ 選擇/自訂文章");
+            rEdit.setTextSize(11);
+            rEdit.setTextColor(Color.parseColor("#38BDF8"));
+            rHeader.addView(rEdit);
+            readingCard.addView(rHeader);
+
+            String readingSnippet = AppConfig.getReadingText(this);
+            TextView rText = new TextView(this);
+            rText.setText("\"" + readingSnippet + "\"");
+            rText.setTextSize(11);
+            rText.setTextColor(Color.parseColor("#E2E8F0"));
+            rText.setMaxLines(3);
+            rText.setEllipsize(TextUtils.TruncateAt.END);
+            rText.setPadding(0, dp(4), 0, 0);
+            readingCard.addView(rText);
+
+            readingCard.setOnClickListener(new View.OnClickListener() {
+                @Override public void onClick(View v) {
+                    showReadingTextDialog();
+                }
+            });
+            lessonPod.addView(readingCard);
+        }
         pageContent.addView(lessonPod);
 
         // 4. 【核心英雄啟動大圓鍵】Hero Interactive Start Orb
@@ -687,12 +737,13 @@ public class MainActivity extends Activity {
         final boolean en = I18n.isEnglish(this);
         final String[] items = {
                 en ? "✨ Bilingual Scaffolding (Target Language + Instant Native Translation, Recommended)" : "✨ 雙語對照模式 (外語說完立即附帶中文口譯，推薦)",
+                en ? "📖 Reading & Pronunciation Coach (Read aloud & AI actively interrupts to correct pronunciation)" : "📖 朗讀糾音教練 (邊朗讀邊糾錯，發音/重音有誤時 AI 即時插話糾正)",
                 en ? "🌱 Beginner Coaching (One phrase at a time + Repeat after tutor with native guidance)" : "🌱 零基礎引導模式 (一句母語說明 + 一句短句示範帶讀)",
                 en ? "🌊 Full Immersion (100% Target Language, for intermediate/advanced learners)" : "🌊 全外語沉浸模式 (100% 全外語對談，適合進階練習)"
         };
-        final String[] values = {"bilingual", "beginner", "immersion"};
+        final String[] values = {"bilingual", "shadowing", "beginner", "immersion"};
         String current = AppConfig.getTeachingMode(this);
-        int selected = "beginner".equals(current) ? 1 : ("immersion".equals(current) ? 2 : 0);
+        int selected = "shadowing".equals(current) ? 1 : ("beginner".equals(current) ? 2 : ("immersion".equals(current) ? 3 : 0));
 
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         builder.setTitle(en ? "💡 Choose Teaching Method & Level" : "💡 選擇教學引導模式 (難易度)");
@@ -702,8 +753,112 @@ public class MainActivity extends Activity {
                 dialog.dismiss();
                 renderHomePage();
                 Toast.makeText(MainActivity.this, en ? "Teaching mode updated" : "已切換教學模式", Toast.LENGTH_SHORT).show();
+                if ("shadowing".equals(values[which])) {
+                    showReadingTextDialog();
+                }
             }
         });
+        builder.show();
+    }
+
+    private void showReadingTextDialog() {
+        final boolean en = I18n.isEnglish(this);
+        final String[] presetTitles = {
+                en ? "🔥 Phonetic Traps Challenge (Subtle, Comfortable, Thorough...)" : "🔥 發音地雷挑戰 (Subtle, Comfortable, Thorough, Photographer...)",
+                en ? "🌱 Daily & Morning Life (Beginner friendly)" : "🌱 日常晨間漫步 (初級友好短文)",
+                en ? "✈️ Travel & Asking Directions (Practical travel)" : "✈️ 旅遊問路情境 (出國實用生活篇)",
+                en ? "💼 Business & AI Workflow (Professional)" : "💼 職場科技商務 (AI 專案簡報篇)",
+                en ? "🌟 Steve Jobs Stanford Speech (Inspirational)" : "🌟 賈伯斯史丹佛演講經典名言 (哲理勵志篇)",
+                en ? "✏️ Custom Input / Paste Article" : "✏️ 自訂輸入 / 貼上朗讀文章…"
+        };
+
+        final String[] presetContents = {
+                "Although he was exhausted from thorough research throughout the night, the subtle photographer comfortably climbed the mountain to capture the scenic view with incredible depth and clarity.",
+                "Good morning! Today is a bright and sunny day. I am going to the local coffee shop to grab a fresh cup of coffee and read a good book. Learning English step by step makes me feel confident and happy.",
+                "Excuse me, could you please tell me how to get to the central station? I have a train to catch at 3:30 PM. Also, is there a comfortable cafe nearby where I can wait? Thank you so much for your kind help!",
+                "Good afternoon, everyone. Today, I would like to present our quarterly project milestones and financial forecasts. By leveraging modern artificial intelligence, we have streamlined our workflow and significantly boosted productivity.",
+                "Your time is limited, so don't waste it living someone else's life. Don't be trapped by dogma, which is living with the results of other people's thinking. Stay hungry, stay foolish."
+        };
+
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle(en ? "📖 Select Reading Material" : "📖 選擇朗讀與糾音教材");
+        builder.setItems(presetTitles, new DialogInterface.OnClickListener() {
+            @Override public void onClick(DialogInterface dialog, int which) {
+                if (which < presetContents.length) {
+                    AppConfig.setReadingText(MainActivity.this, presetContents[which]);
+                    renderHomePage();
+                    Toast.makeText(MainActivity.this, en ? "Reading material selected!" : "已選定朗讀文章！", Toast.LENGTH_SHORT).show();
+                } else {
+                    showCustomReadingInputDialog();
+                }
+            }
+        });
+        builder.setNegativeButton(en ? "Close" : "關閉", null);
+        builder.show();
+    }
+
+    private void showCustomReadingInputDialog() {
+        final boolean en = I18n.isEnglish(this);
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle(en ? "✏️ Custom Reading Text" : "✏️ 自訂朗讀文章");
+        builder.setMessage(en ? "Paste or enter the English passage you want to practice reading aloud:" : "請輸入或貼上您想大聲朗讀練習的英文短文：");
+
+        LinearLayout layout = new LinearLayout(this);
+        layout.setOrientation(LinearLayout.VERTICAL);
+        layout.setPadding(dp(16), dp(8), dp(16), dp(8));
+
+        final EditText input = new EditText(this);
+        input.setText(AppConfig.getReadingText(this));
+        input.setHint("Paste English text here...");
+        input.setTextColor(Color.WHITE);
+        input.setTextSize(13);
+        input.setMinLines(4);
+        input.setGravity(Gravity.TOP);
+        input.setPadding(dp(12), dp(10), dp(12), dp(10));
+        GradientDrawable iBg = new GradientDrawable();
+        iBg.setColor(Color.parseColor("#1E293B"));
+        iBg.setCornerRadius(dp(10));
+        input.setBackground(iBg);
+        layout.addView(input);
+
+        Button pasteBtn = new Button(this);
+        pasteBtn.setText(en ? "📋 Paste from Clipboard" : "📋 從剪貼簿貼上");
+        pasteBtn.setTextSize(11);
+        pasteBtn.setTextColor(Color.WHITE);
+        GradientDrawable pBg = new GradientDrawable();
+        pBg.setColor(Color.parseColor("#334155"));
+        pBg.setCornerRadius(dp(8));
+        pasteBtn.setBackground(pBg);
+        pasteBtn.setOnClickListener(new View.OnClickListener() {
+            @Override public void onClick(View v) {
+                try {
+                    android.content.ClipboardManager cm = (android.content.ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+                    if (cm != null && cm.hasPrimaryClip() && cm.getPrimaryClip().getItemCount() > 0) {
+                        CharSequence clip = cm.getPrimaryClip().getItemAt(0).getText();
+                        if (clip != null) {
+                            input.setText(clip.toString().trim());
+                            Toast.makeText(MainActivity.this, en ? "Pasted" : "已貼上", Toast.LENGTH_SHORT).show();
+                        }
+                    }
+                } catch (Exception ignored) {}
+            }
+        });
+        LinearLayout.LayoutParams pLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(34));
+        pLp.setMargins(0, dp(6), 0, 0);
+        layout.addView(pasteBtn, pLp);
+
+        builder.setView(layout);
+        builder.setPositiveButton(en ? "Save & Apply" : "套用文章", new DialogInterface.OnClickListener() {
+            @Override public void onClick(DialogInterface dialog, int which) {
+                String custom = input.getText().toString().trim();
+                if (!custom.isEmpty()) {
+                    AppConfig.setReadingText(MainActivity.this, custom);
+                    renderHomePage();
+                    Toast.makeText(MainActivity.this, en ? "Custom reading text applied!" : "已套用自訂朗讀文章！", Toast.LENGTH_SHORT).show();
+                }
+            }
+        });
+        builder.setNegativeButton(en ? "Cancel" : "取消", null);
         builder.show();
     }
 

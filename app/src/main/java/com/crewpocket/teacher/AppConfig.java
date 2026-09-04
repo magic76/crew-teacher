@@ -17,12 +17,14 @@ public class AppConfig {
     public static final String KEY_CUSTOM_PROMPT = "custom_system_prompt";
     public static final String KEY_UI_LANGUAGE = "ui_language";
     public static final String KEY_TEACHING_MODE = "teaching_mode";
+    public static final String KEY_READING_TEXT = "reading_text";
 
     public static final String DEFAULT_VOICE = "Kore";
     public static final String DEFAULT_TUTOR_LANG = "en"; // en, ja, ko, es, zh
     public static final String DEFAULT_PERSONA = "daily"; // daily, travel, business, exam, friendly
     public static final String DEFAULT_UI_LANG = "zh"; // zh, en
-    public static final String DEFAULT_TEACHING_MODE = "bilingual"; // beginner (零基礎引導), bilingual (雙語對照), immersion (全外語沉浸)
+    public static final String DEFAULT_TEACHING_MODE = "bilingual"; // beginner (零基礎引導), bilingual (雙語對照), immersion (全外語沉浸), shadowing (朗讀糾音教練)
+    public static final String DEFAULT_READING_TEXT = "Although he was exhausted from thorough research throughout the night, the subtle photographer comfortably climbed the mountain to capture the scenic view with incredible depth and clarity.";
 
     public static SharedPreferences getPrefs(Context context) {
         return context.getApplicationContext().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
@@ -108,13 +110,25 @@ public class AppConfig {
     public static String getTeachingMode(Context context) {
         if (context == null) return DEFAULT_TEACHING_MODE;
         String mode = getPrefs(context).getString(KEY_TEACHING_MODE, DEFAULT_TEACHING_MODE);
-        return ("beginner".equals(mode) || "immersion".equals(mode)) ? mode : "bilingual";
+        return ("beginner".equals(mode) || "immersion".equals(mode) || "shadowing".equals(mode)) ? mode : "bilingual";
     }
 
     public static void setTeachingMode(Context context, String mode) {
         if (context == null) return;
-        String clean = ("beginner".equals(mode) || "immersion".equals(mode)) ? mode : "bilingual";
+        String clean = ("beginner".equals(mode) || "immersion".equals(mode) || "shadowing".equals(mode)) ? mode : "bilingual";
         getPrefs(context).edit().putString(KEY_TEACHING_MODE, clean).apply();
+    }
+
+    // ── 3.5 Reading Material for Shadowing / Pronunciation Coach ──
+    public static String getReadingText(Context context) {
+        if (context == null) return DEFAULT_READING_TEXT;
+        String text = getPrefs(context).getString(KEY_READING_TEXT, DEFAULT_READING_TEXT);
+        return (text == null || text.trim().isEmpty()) ? DEFAULT_READING_TEXT : text.trim();
+    }
+
+    public static void setReadingText(Context context, String text) {
+        if (context == null) return;
+        getPrefs(context).edit().putString(KEY_READING_TEXT, text == null ? "" : text.trim()).apply();
     }
 
     // ── 4. Noise suppression ──

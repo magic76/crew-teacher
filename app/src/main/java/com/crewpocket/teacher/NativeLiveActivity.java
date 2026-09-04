@@ -110,6 +110,52 @@ public class NativeLiveActivity extends Activity {
 
         root.addView(statusBox);
 
+        // 2.5 Reading Material Card (If shadowing mode is active)
+        String teachingMode = AppConfig.getTeachingMode(this);
+        if ("shadowing".equals(teachingMode)) {
+            LinearLayout readingCard = new LinearLayout(this);
+            readingCard.setOrientation(LinearLayout.VERTICAL);
+            readingCard.setPadding(dp(14), dp(10), dp(14), dp(10));
+            GradientDrawable rBg = new GradientDrawable();
+            rBg.setColor(Color.parseColor("#1E1B4B"));
+            rBg.setCornerRadius(dp(14));
+            rBg.setStroke(dp(1), Color.parseColor("#6366F1"));
+            readingCard.setBackground(rBg);
+            LinearLayout.LayoutParams rLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            rLp.setMargins(0, 0, 0, dp(14));
+            readingCard.setLayoutParams(rLp);
+
+            LinearLayout rHeader = new LinearLayout(this);
+            rHeader.setOrientation(LinearLayout.HORIZONTAL);
+            rHeader.setGravity(Gravity.CENTER_VERTICAL);
+
+            TextView rTitle = new TextView(this);
+            rTitle.setText(en ? "📖 Reading Text (AI actively listening)" : "📖 朗讀教材 (請大聲朗讀，AI 即時糾音)");
+            rTitle.setTextSize(12);
+            rTitle.setTextColor(Color.parseColor("#A5B4FC"));
+            rTitle.setTypeface(Typeface.DEFAULT_BOLD);
+            rHeader.addView(rTitle, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+
+            readingCard.addView(rHeader);
+
+            TextView rText = new TextView(this);
+            rText.setText(AppConfig.getReadingText(this));
+            rText.setTextColor(Color.WHITE);
+            rText.setTextSize(14);
+            rText.setTypeface(Typeface.create("sans-serif", Typeface.BOLD));
+            rText.setLineSpacing(dp(3), 1.2f);
+            rText.setPadding(0, dp(6), 0, dp(4));
+            readingCard.addView(rText);
+
+            TextView rHint = new TextView(this);
+            rHint.setText(en ? "💡 Read naturally. AI stays silent when accurate and speaks up immediately to correct pronunciation issues." : "💡 請大聲朗讀上方文字。發音標準時 AI 保持安靜聆聽，若發音或重音有偏差會即時插話示範！");
+            rHint.setTextSize(11);
+            rHint.setTextColor(Color.parseColor("#38BDF8"));
+            readingCard.addView(rHint);
+
+            root.addView(readingCard);
+        }
+
         // 3. Transcript Card
         LinearLayout transcriptCard = new LinearLayout(this);
         transcriptCard.setOrientation(LinearLayout.VERTICAL);
@@ -131,9 +177,15 @@ public class NativeLiveActivity extends Activity {
         transcriptScrollView.setPadding(0, dp(8), 0, 0);
 
         transcript = new TextView(this);
-        transcript.setText(en
-                ? "Tap 'Start Oral Practice' below to connect with Gemini Live.\nSpeak naturally to your phone and the AI tutor will give instant spoken responses and guidance!"
-                : "點擊下方「開始口語對話」連線至 Gemini Live 語音引擎。\n連線後直接對著手機說話，AI 外教會即時給予語音回應與引導！");
+        if ("shadowing".equals(teachingMode)) {
+            transcript.setText(en
+                    ? "Tap 'Start Practice' below to connect with your Real-time Reading Coach.\nRead the passage above aloud into your phone. If your pronunciation, vowels, or stress is off, AI will actively interrupt to guide you!"
+                    : "點擊下方「開始口語對話」連線至即時朗讀糾音教練。\n請直接對著手機朗讀上方文章，若發音或重音有偏差，AI 會即時出聲打斷並示範正確讀法！");
+        } else {
+            transcript.setText(en
+                    ? "Tap 'Start Oral Practice' below to connect with Gemini Live.\nSpeak naturally to your phone and the AI tutor will give instant spoken responses and guidance!"
+                    : "點擊下方「開始口語對話」連線至 Gemini Live 語音引擎。\n連線後直接對著手機說話，AI 外教會即時給予語音回應與引導！");
+        }
         transcript.setTextColor(CrewTheme.TEXT_PRIMARY);
         transcript.setTextSize(14);
         transcript.setLineSpacing(dp(3), 1.2f);
