@@ -500,7 +500,7 @@ public class NativeGeminiLiveClient {
             JSONArray contents = new JSONArray().put(new JSONObject().put("parts", parts));
             root.put("contents", contents);
 
-            String url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=" + apiKey;
+            String url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=" + apiKey;
             RequestBody body = RequestBody.create(MediaType.parse("application/json; charset=utf-8"), root.toString());
             Request req = new Request.Builder().url(url).post(body).build();
             httpClient.newCall(req).enqueue(new okhttp3.Callback() {
