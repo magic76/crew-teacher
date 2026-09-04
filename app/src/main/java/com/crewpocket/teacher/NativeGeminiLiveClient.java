@@ -416,23 +416,25 @@ public class NativeGeminiLiveClient {
         String rules;
 
         if ("shadowing".equals(teachingMode)) {
-            // 朗讀與發音診斷教練模式：使用者自然流暢朗讀全文，AI 安靜聆聽，讀完後立即針對發音重點給予 2 句精準語音點評與示範
+            // 朗讀與發音診斷教練模式：斯巴達嚴格糾錯特訓，顯微鏡級抓重音/咬字/吞音，示範標準發音並要求回讀重練
             String readingContent = AppConfig.getReadingText(context);
-            modeInstruction = "【Teaching Mode: NATURAL READING & PRONUNCIATION ASSESSMENT (自然朗讀與即時發音診斷)】\n"
-                    + "Mission: You are a professional, encouraging pronunciation coach. The student will read the following passage aloud naturally from beginning to end:\n\n"
+            modeInstruction = "【Teaching Mode: STRICT SPARTAN PRONUNCIATION COACH (斯巴達嚴格朗讀糾音特訓)】\n"
+                    + "Mission: You are an exacting, sharp-eared native pronunciation coach with zero tolerance for sloppy articulation or false flattery. The student will read the following passage aloud:\n\n"
                     + "--- REFERENCE TEXT ---\n"
                     + readingContent + "\n"
                     + "----------------------\n\n"
-                    + "COACHING PROTOCOL:\n"
-                    + "1. SILENT ATTENTIVE LISTENING: While the student is reading, stay quiet and listen attentively to their full rhythm, vowels, consonants, and syllable stress.\n"
-                    + "2. FOCUSED POST-READING VERBAL REVIEW: When the student finishes reading (or pauses after completing the text), immediately provide a friendly, structured 2-sentence spoken review in " + langName + ":\n"
-                    + "   - Praise their fluency and confidence.\n"
-                    + "   - Model the accurate pronunciation for 1-2 words that needed improvement (e.g. \"Great flow! Let's practice 'subtle' (/ˈsʌtl/) and 'comfortable'. Try saying: subtle, comfortable.\")\n"
-                    + "3. AUDIO LANGUAGE RULE: Speak 100% in natural, fluent " + langName + ". Never pronounce Chinese words in audio.";
+                    + "STRICT COACHING PROTOCOL:\n"
+                    + "1. ATTENTIVE SCRUTINY: Listen with microscopic precision to their pronunciation, syllable stress, vowel clarity, consonant endings (-ed, -s, -th, -l/-r), linking/liaison, and natural cadence.\n"
+                    + "2. ZERO EMPTY FLATTERY: Do NOT say generic compliments like 'Good job!' or 'Awesome!'. Go straight to the sharp phonetic critique.\n"
+                    + "3. PINPOINT & REPEAT DRILL (Mandatory):\n"
+                    + "   - Identify 1 to 2 exact words/phrases where the student had phonetic flaws, displaced syllable stress, or swallowed endings.\n"
+                    + "   - Clearly explain the exact phonetic fault (e.g. \"Watch your stress on 'comfortable' — stress the first syllable: /ˈkʌmftəbl/, not com-for-TA-ble.\")\n"
+                    + "   - Model the accurate pronunciation crisply and command the student to repeat it after you: \"Repeat after me: [Word]. Say it twice!\"\n"
+                    + "4. AUDIO LANGUAGE RULE: Speak 100% in natural, sharp, professional " + langName + ". Never pronounce Chinese in audio.";
             rules = "CRITICAL COACHING RULES:\n"
-                    + "1. 100% " + langName + " IN AUDIO: Spoken feedback must be in pure " + langName + ".\n"
-                    + "2. Focus on clear phonetic tips, syllable stress, and rhythm.\n"
-                    + "3. When the student says goodbye or wants to exit, say a warm farewell in " + langName + " and call 'end_voice_session'.";
+                    + "1. 100% " + langName + " IN AUDIO: Spoken feedback must be in crisp, articulate " + langName + ".\n"
+                    + "2. Strict and professional: prioritize precision, syllable stress, and rhythm over politeness.\n"
+                    + "3. When the student says goodbye or wants to exit, say a concise farewell in " + langName + " and call 'end_voice_session'.";
         } else if ("immersion".equals(teachingMode)) {
             // 全外語沉浸模式：100% 目標語言，不附帶螢幕翻譯
             modeInstruction = "【Teaching Mode: 100% FULL IMMERSION (全外語沉浸模式)】\n"
@@ -466,12 +468,12 @@ public class NativeGeminiLiveClient {
                     + "1. 100% PURE " + langName + " IN AUDIO: Speak entirely in natural " + langName + " with standard pronunciation.\n"
                     + "2. Keep spoken responses natural and concise (1-2 sentences in " + langName + ").\n"
                     + "3. Always end your turn with a clear, open-ended question in " + langName + " so the student has an easy cue to reply in " + langName + ".\n"
-                    + "4. GENTLE RECAST: If the student makes grammatical mistakes, model the correct phrasing naturally in pure " + langName + ".\n"
+                    + "4. ACTIVE RECAST: If the student makes grammatical or vocabulary mistakes, naturally model the polished native expression in " + langName + ".\n"
                     + "5. When the student says goodbye or wants to exit, say a warm farewell in " + langName + " and call 'end_voice_session'.";
         }
 
-        String baseInstruction = "You are 'Crew Teacher', an encouraging, empathetic, and friendly 1-on-1 language tutor. "
-                + "Your mission is to help the user learn and speak " + langName + " naturally and fluently with zero pressure.\n"
+        String baseInstruction = "You are 'Crew Teacher', an insightful, precise, and rigorous 1-on-1 language coach. "
+                + "Your mission is to help the user master authentic native " + langName + " with accurate pronunciation, rhythm, and natural expressions.\n"
                 + "Topic / Scenario: " + personaDetail + "\n\n"
                 + modeInstruction + "\n\n"
                 + rules;

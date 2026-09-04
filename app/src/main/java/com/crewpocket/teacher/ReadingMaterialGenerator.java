@@ -51,23 +51,24 @@ public class ReadingMaterialGenerator {
         String targetLangCode = AppConfig.getTutorLanguage(context);
         String targetLangName = MainActivity.getLanguageLabel(targetLangCode);
 
-        String topicDesc = "daily".equalsIgnoreCase(topic) ? "Daily life, hobbies, coffee shop, or morning routine" :
-                ("travel".equalsIgnoreCase(topic) ? "Travel scenarios, airport, hotel, ordering food, or asking directions" :
-                ("business".equalsIgnoreCase(topic) ? "Business workplace, presentations, project milestones, or AI technology" :
-                ("phonetics".equalsIgnoreCase(topic) ? "Pronunciation, natural rhythm, vowel clarity, and challenging sounds" :
-                (topic != null && !topic.isEmpty() ? topic : "Engaging conversational topic and cultural story"))));
+        String topicDesc = "daily".equalsIgnoreCase(topic) ? "Daily life, weekend morning routine, memorable coffee shop experience, or relaxing hobbies" :
+                ("travel".equalsIgnoreCase(topic) ? "Authentic travel scenario, navigating a foreign airport, exploring historic streets, or tasting local cuisine" :
+                ("business".equalsIgnoreCase(topic) ? "Professional workplace communication, product innovation, AI technology impact, or project milestone" :
+                ("phonetics".equalsIgnoreCase(topic) ? "Challenging pronunciation drill with varied syllable stresses, liaison/linking sounds, and subtle vowel contrasts" :
+                (topic != null && !topic.isEmpty() ? topic : "Engaging conversational story with natural emotional arc and cultural atmosphere"))));
 
-        String levelDesc = "beginner".equalsIgnoreCase(level) ? "Beginner (Short simple sentences, A1-A2 level)" :
-                ("advanced".equalsIgnoreCase(level) ? "Advanced (Rich vocabulary, natural native rhythm, C1 level)" : "Intermediate (Natural practical flow, B1-B2 level)");
+        String levelDesc = "beginner".equalsIgnoreCase(level) ? "Beginner-Intermediate (Clear, natural sentences with practical everyday vocabulary, A2-B1 level)" :
+                ("advanced".equalsIgnoreCase(level) ? "Advanced (Rich expressive vocabulary, sophisticated clause structures, authentic native cadence, C1 level)" : "Intermediate (Smooth narrative flow, diverse vocabulary, natural rhythm and intonation, B1-B2 level)");
 
-        final String prompt = "You are a native language teacher creating an oral reading and pronunciation practice passage for a student learning " + targetLangName + " (" + targetLangCode + ").\n"
+        final String prompt = "You are a master native language tutor crafting an immersive oral reading and pronunciation practice paragraph for a student learning " + targetLangName + " (" + targetLangCode + ").\n"
                 + "Topic: " + topicDesc + "\n"
                 + "Difficulty Level: " + levelDesc + "\n\n"
-                + "RULES:\n"
-                + "1. Write an engaging, natural, 2-to-3 sentence passage in " + targetLangName + ".\n"
-                + "2. It MUST be 100% written in the native script of " + targetLangName + " (e.g. Japanese kanji/hiragana for ja, Hangul for ko, Spanish for es, English for en, etc.).\n"
-                + "3. Do NOT include romaji, pinyin, pronunciation guides, translations, quotes, bullet points, or markdown.\n"
-                + "4. Output ONLY the raw " + targetLangName + " passage text directly.";
+                + "REQUIREMENTS:\n"
+                + "1. Write a cohesive, engaging, and beautifully flowing 4-to-6 sentence paragraph in " + targetLangName + " (around 80-120 words).\n"
+                + "2. It MUST tell a complete mini-story or express a coherent thought with clear rhythm, natural pauses, and excellent cadence for oral reading.\n"
+                + "3. It MUST be 100% written in authentic native script of " + targetLangName + " (e.g. standard kanji/kana for ja, Hangul for ko, Spanish for es, English for en, etc.).\n"
+                + "4. Do NOT include romaji, pinyin, phonetic guides, Chinese translations, quotes, bullet points, titles, or markdown.\n"
+                + "5. Output ONLY the raw " + targetLangName + " paragraph text directly.";
 
         tryModelAt(0, apiKey.trim(), prompt, mainHandler, callback);
     }
@@ -89,7 +90,7 @@ public class ReadingMaterialGenerator {
 
             JSONObject genConfig = new JSONObject();
             genConfig.put("temperature", 0.7);
-            genConfig.put("maxOutputTokens", 400);
+            genConfig.put("maxOutputTokens", 800);
             root.put("generationConfig", genConfig);
 
             String url = "https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent?key=" + apiKey;

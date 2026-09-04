@@ -776,12 +776,12 @@ public class MainActivity extends Activity {
         String langLabel = getLanguageLabel(currentLang);
 
         final String[] options = {
-                en ? "✨ AI Generate: Daily & Casual Life (" + langLabel + ")" : "✨ AI 智能生成：日常生活會話 (" + langLabel + ")",
-                en ? "✨ AI Generate: Travel & Dining (" + langLabel + ")" : "✨ AI 智能生成：出國旅遊問路 (" + langLabel + ")",
-                en ? "✨ AI Generate: Business & Workplace (" + langLabel + ")" : "✨ AI 智能生成：職場商務科技 (" + langLabel + ")",
-                en ? "🔥 AI Generate: Challenging Pronunciation & Phonetics" : "🔥 AI 智能生成：發音地雷與連音特訓 (" + langLabel + ")",
-                en ? "🎯 AI Custom Topic (Enter any topic you want...)" : "🎯 AI 自訂主題出題（輸入任意情境讓外師出題…）",
-                en ? "📋 Paste Custom Text from Clipboard" : "📋 手動輸入 / 從剪貼簿貼上文章…"
+                en ? "✨ AI Story: Daily Life & Hobbies (Fluent Paragraph, 4-6 sentences)" : "✨ AI 生成：日常生活與愛好故事 (4~6句流暢段落)",
+                en ? "✨ AI Story: Travel Adventure & Dining (4-6 sentences)" : "✨ AI 生成：出國旅行與在地探索 (4~6句流暢段落)",
+                en ? "✨ AI Story: Workplace, Tech & Vision (Advanced Flow)" : "✨ AI 生成：職場觀點與科技革新 (進階段落)",
+                en ? "🔥 AI Drill: Spartan Linking & Phonetics Challenge" : "🔥 AI 生成：斯巴達發音重音與連音特訓 (高語流)",
+                en ? "🎯 AI Custom Scenario / Topic..." : "🎯 AI 自訂情境出題（輸入任意主題…）",
+                en ? "📋 Paste / Enter Custom Passage" : "📋 手動輸入 / 從剪貼簿貼上文章…"
         };
 
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
