@@ -599,6 +599,7 @@ public class MainActivity extends Activity {
     }
 
     public static String getLanguageLabel(String code) {
+        if ("zh".equalsIgnoreCase(code) || "cmn".equalsIgnoreCase(code) || "chinese".equalsIgnoreCase(code) || "mandarin".equalsIgnoreCase(code)) return "中文 (國語/普通話)";
         if ("nan".equalsIgnoreCase(code) || "hokkien".equalsIgnoreCase(code)) return "閩南語 (台語)";
         if ("hak".equalsIgnoreCase(code) || "hakka".equalsIgnoreCase(code)) return "客家語 (客語)";
         if ("yue".equalsIgnoreCase(code) || "cantonese".equalsIgnoreCase(code)) return "粵語 (廣東話)";
@@ -629,6 +630,7 @@ public class MainActivity extends Activity {
     private void showLanguageDialog() {
         final boolean en = I18n.isEnglish(this);
         final String[] items = {
+                "🇨🇳 中文 / 國語 (Mandarin Chinese)",
                 "🇺🇸 英語 (English)",
                 "🇹🇼 閩南語 / 台語 (Taiwanese Hokkien)",
                 "🇹🇼 客家語 (Hakka)",
@@ -648,7 +650,7 @@ public class MainActivity extends Activity {
                 "🇷🇺 俄語 (Русский)",
                 "🇮🇩 印尼語 (Bahasa Indonesia)"
         };
-        final String[] values = {"en", "nan", "hak", "yue", "ja", "ko", "es", "fr", "de", "it", "ar", "hi", "ms", "vi", "th", "pt", "ru", "id"};
+        final String[] values = {"zh", "en", "nan", "hak", "yue", "ja", "ko", "es", "fr", "de", "it", "ar", "hi", "ms", "vi", "th", "pt", "ru", "id"};
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         builder.setTitle(en ? "🌐 Target Practice Language" : "🌐 選擇練習目標語言");
         builder.setItems(items, new DialogInterface.OnClickListener() {

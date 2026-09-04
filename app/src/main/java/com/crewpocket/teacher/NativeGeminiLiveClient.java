@@ -365,7 +365,7 @@ public class NativeGeminiLiveClient {
         String langName = getLanguageDisplayName(tutorLang);
         String teachingMode = AppConfig.getTeachingMode(context);
         boolean isUiEn = I18n.isEnglish(context);
-        String nativeLang = isUiEn ? "English" : "Traditional Chinese (繁體中文/國語)";
+        String nativeLang = (isUiEn || "zh".equalsIgnoreCase(tutorLang)) ? "English" : "Traditional Chinese (繁體中文/國語)";
 
         String personaDetail = "daily".equals(tutorPersona) ? "Daily life, hobbies, current events, and casual chats." :
                 ("travel".equals(tutorPersona) ? "Travel scenarios (airport, hotel, ordering food, asking directions)." :
@@ -433,6 +433,7 @@ public class NativeGeminiLiveClient {
     }
 
     private static String getLanguageDisplayName(String code) {
+        if ("zh".equalsIgnoreCase(code) || "cmn".equalsIgnoreCase(code) || "chinese".equalsIgnoreCase(code) || "mandarin".equalsIgnoreCase(code)) return "Standard Mandarin Chinese (國語/華語/普通話)";
         if ("nan".equalsIgnoreCase(code) || "hokkien".equalsIgnoreCase(code) || "taiwanese".equalsIgnoreCase(code)) return "Taiwanese Hokkien / Southern Min (閩南語/台灣話/台語)";
         if ("hak".equalsIgnoreCase(code) || "hakka".equalsIgnoreCase(code)) return "Hakka (客家語/客語)";
         if ("yue".equalsIgnoreCase(code) || "cantonese".equalsIgnoreCase(code) || "zh-HK".equalsIgnoreCase(code)) return "Cantonese (粵語/廣東話)";
