@@ -11,7 +11,10 @@ import android.os.Handler;
 import android.speech.tts.TextToSpeech;
 import android.text.SpannableStringBuilder;
 import android.text.Spanned;
+import android.text.TextPaint;
+import android.text.method.LinkMovementMethod;
 import android.text.style.BackgroundColorSpan;
+import android.text.style.ClickableSpan;
 import android.text.style.ForegroundColorSpan;
 import android.text.style.StyleSpan;
 import android.text.style.UnderlineSpan;
@@ -49,7 +52,7 @@ public class NativeLiveActivity extends Activity {
     private String[] rawWords;
     private String[] cleanWords;
     private int[] wordStates; // 0 = Pending (grey), 1 = Correct (green), 2 = Mispronounced/Skipped (red), 3 = Current (cyan)
-    private int currentWordIndex = 0;
+    private final List<String> spokenTokenHistory = new ArrayList<String>();
     private TextView readingBoardText;
     private LinearLayout diagnosticCard;
     private TextView scoreBadge;
@@ -172,24 +175,28 @@ public class NativeLiveActivity extends Activity {
             bHeader.setGravity(Gravity.CENTER_VERTICAL);
 
             TextView bTitle = new TextView(this);
-            bTitle.setText(en ? "📖 Real-time Reading Board (Colors as you speak)" : "📖 即時朗讀板（說話時自動變色）");
+            bTitle.setText(en ? "📖 Real-time Reading Board (Colors as you speak)" : "📖 即時朗讀板（點字聽發音，說話自動變色）");
             bTitle.setTextSize(12);
             bTitle.setTextColor(Color.parseColor("#38BDF8"));
             bTitle.setTypeface(Typeface.DEFAULT_BOLD);
             bHeader.addView(bTitle, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
 
             // Reset / Restart Button
-            TextView resetBtn = new TextView(this);
+            Button resetBtn = new Button(this);
             resetBtn.setText(en ? "🔄 Restart" : "🔄 重新朗讀");
             resetBtn.setTextSize(11);
-            resetBtn.setTextColor(Color.parseColor("#94A3B8"));
-            resetBtn.setPadding(dp(6), dp(2), dp(6), dp(2));
+            resetBtn.setTextColor(Color.WHITE);
+            GradientDrawable rBg = new GradientDrawable();
+            rBg.setColor(Color.parseColor("#334155"));
+            rBg.setCornerRadius(dp(8));
+            resetBtn.setBackground(rBg);
             resetBtn.setOnClickListener(new View.OnClickListener() {
                 @Override public void onClick(View v) {
                     resetReadingBoard();
+                    Toast.makeText(NativeLiveActivity.this, en ? "Reading board reset! Start reading from beginning." : "已重置朗讀板！請隨時從頭開口朗讀。", Toast.LENGTH_SHORT).show();
                 }
             });
-            bHeader.addView(resetBtn);
+            bHeader.addView(resetBtn, new LinearLayout.LayoutParams(dp(80), dp(32)));
             boardCard.addView(bHeader);
 
             // Legend Row
@@ -206,6 +213,7 @@ public class NativeLiveActivity extends Activity {
             readingBoardText.setLineSpacing(dp(6), 1.25f);
             readingBoardText.setTypeface(Typeface.create("sans-serif", Typeface.BOLD));
             readingBoardText.setPadding(0, dp(6), 0, dp(6));
+            readingBoardText.setMovementMethod(LinkMovementMethod.getInstance());
             boardCard.addView(readingBoardText);
             renderReadingBoardSpannable();
 
@@ -249,8 +257,8 @@ public class NativeLiveActivity extends Activity {
 
             TextView hintMsg = new TextView(this);
             hintMsg.setText(en
-                    ? "Read the text above naturally. When you finish, the diagnostic analysis and IPA tips will appear here!"
-                    : "請直接對著手機自然大聲朗讀上方文字。讀完後，系統與 AI 會在這裡列出發音偏差單字與標準音標！");
+                    ? "Read the text above naturally. When you speak, live phonetic analysis and IPA tips will update here!"
+                    : "請直接對著手機自然大聲朗讀上方文字。朗讀時，系統會即時分析並在此生成發音偏差單字與標準音標！");
             hintMsg.setTextSize(12);
             hintMsg.setTextColor(Color.parseColor("#94A3B8"));
             troubleWordsContainer.addView(hintMsg);
@@ -390,18 +398,18 @@ public class NativeLiveActivity extends Activity {
             cleanWords[i] = rawWords[i].replaceAll("[^a-zA-Z0-9]", "").toLowerCase();
             wordStates[i] = 0; // pending
         }
-        currentWordIndex = 0;
+        spokenTokenHistory.clear();
         if (wordStates.length > 0) {
             wordStates[0] = 3; // first word is focus
         }
     }
 
     private void resetReadingBoard() {
+        spokenTokenHistory.clear();
         if (wordStates != null) {
             for (int i = 0; i < wordStates.length; i++) {
                 wordStates[i] = 0;
             }
-            currentWordIndex = 0;
             if (wordStates.length > 0) wordStates[0] = 3;
             renderReadingBoardSpannable();
         }
@@ -410,7 +418,7 @@ public class NativeLiveActivity extends Activity {
             boolean en = I18n.isEnglish(this);
             scoreBadge.setText(en ? "Score: --" : "準確率：--");
             TextView hintMsg = new TextView(this);
-            hintMsg.setText(en ? "Start reading whenever you're ready!" : "點擊下方開始朗讀，系統將即時分析！");
+            hintMsg.setText(en ? "Start reading whenever you're ready!" : "請隨時開口朗讀，系統將即時高亮！");
             hintMsg.setTextSize(12);
             hintMsg.setTextColor(Color.parseColor("#94A3B8"));
             troubleWordsContainer.addView(hintMsg);
@@ -422,8 +430,11 @@ public class NativeLiveActivity extends Activity {
         SpannableStringBuilder ssb = new SpannableStringBuilder();
 
         for (int i = 0; i < rawWords.length; i++) {
+            final int wordIndex = i;
+            final String rawWord = rawWords[i];
+            final String cleanWord = cleanWords[i];
             int start = ssb.length();
-            ssb.append(rawWords[i]);
+            ssb.append(rawWord);
             int end = ssb.length();
 
             int state = wordStates[i];
@@ -446,6 +457,21 @@ public class NativeLiveActivity extends Activity {
                 ssb.setSpan(new ForegroundColorSpan(Color.parseColor("#94A3B8")), start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
             }
 
+            // ClickableSpan so tapping ANY word speaks it and shows IPA!
+            ssb.setSpan(new ClickableSpan() {
+                @Override
+                public void onClick(View widget) {
+                    speakWord(cleanWord);
+                    String ipa = getIpaForWord(cleanWord);
+                    String tip = getTipForWord(cleanWord);
+                    Toast.makeText(NativeLiveActivity.this, rawWord + " " + ipa + "\n" + tip, Toast.LENGTH_SHORT).show();
+                }
+                @Override
+                public void updateDrawState(TextPaint ds) {
+                    ds.setUnderlineText(state == 2);
+                }
+            }, start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+
             if (i < rawWords.length - 1) {
                 ssb.append(" ");
             }
@@ -453,53 +479,91 @@ public class NativeLiveActivity extends Activity {
         readingBoardText.setText(ssb);
     }
 
-    private void processSpokenTextForShadowing(String spokenChunk) {
-        if (spokenChunk == null || cleanWords == null || currentWordIndex >= cleanWords.length) return;
-        String[] tokens = spokenChunk.trim().split("\\s+");
+    /**
+     * Dynamic Sequence Alignment:
+     * Robustly aligns cumulative/incremental spoken tokens with reference text.
+     * Handles stumbles, repeats, self-corrections, and multi-run loops without getting stuck!
+     */
+    private synchronized void processSpokenTextForShadowing(String spokenChunk) {
+        if (spokenChunk == null || cleanWords == null || cleanWords.length == 0) return;
+        String[] newTokens = spokenChunk.trim().split("\\s+");
 
-        for (String token : tokens) {
-            String cleanToken = token.replaceAll("[^a-zA-Z0-9]", "").toLowerCase();
-            if (cleanToken.isEmpty()) continue;
+        for (String t : newTokens) {
+            String clean = t.replaceAll("[^a-zA-Z0-9]", "").toLowerCase();
+            if (!clean.isEmpty()) {
+                spokenTokenHistory.add(clean);
+            }
+        }
 
-            // Search matching forward within a window of 3 words
-            int matchIdx = -1;
-            int lookAhead = Math.min(cleanWords.length, currentWordIndex + 3);
-            for (int i = currentWordIndex; i < lookAhead; i++) {
-                if (isWordMatch(cleanToken, cleanWords[i])) {
-                    matchIdx = i;
+        if (spokenTokenHistory.isEmpty()) return;
+
+        // 🔄 Multi-run Auto-restart Detection:
+        // If user already reached towards the end, but now spoke the first 1-2 words of the text, auto-reset history!
+        int currentFurthest = 0;
+        for (int i = 0; i < wordStates.length; i++) {
+            if (wordStates[i] == 1 || wordStates[i] == 2) currentFurthest = i;
+        }
+        if (currentFurthest >= Math.max(2, cleanWords.length - 3)) {
+            // Check if latest 3 spoken tokens match the beginning of cleanWords
+            int histSize = spokenTokenHistory.size();
+            for (int i = Math.max(0, histSize - 4); i < histSize; i++) {
+                if (isWordMatch(spokenTokenHistory.get(i), cleanWords[0])) {
+                    // User restarted reading from the beginning!
+                    List<String> freshTokens = new ArrayList<String>(spokenTokenHistory.subList(i, histSize));
+                    spokenTokenHistory.clear();
+                    spokenTokenHistory.addAll(freshTokens);
+                    for (int k = 0; k < wordStates.length; k++) wordStates[k] = 0;
+                    break;
+                }
+            }
+        }
+
+        // Perform Sliding Window Dynamic Alignment between cleanWords and spokenTokenHistory
+        int spokenIdx = 0;
+        int lastMatchedRefIdx = -1;
+
+        // Reset states
+        for (int i = 0; i < cleanWords.length; i++) {
+            wordStates[i] = 0;
+        }
+
+        for (int refIdx = 0; refIdx < cleanWords.length && spokenIdx < spokenTokenHistory.size(); refIdx++) {
+            String target = cleanWords[refIdx];
+            int bestSpokenMatch = -1;
+
+            // Search within forward window in spoken tokens (up to 4 tokens)
+            int window = Math.min(spokenTokenHistory.size(), spokenIdx + 4);
+            for (int s = spokenIdx; s < window; s++) {
+                if (isWordMatch(spokenTokenHistory.get(s), target)) {
+                    bestSpokenMatch = s;
                     break;
                 }
             }
 
-            if (matchIdx != -1) {
-                // Mark skipped words as mispronounced/skipped
-                for (int j = currentWordIndex; j < matchIdx; j++) {
-                    if (wordStates[j] == 0 || wordStates[j] == 3) {
-                        wordStates[j] = 2; // red
-                    }
-                }
-                wordStates[matchIdx] = 1; // green (matched)
-                currentWordIndex = matchIdx + 1;
-                if (currentWordIndex < wordStates.length) {
-                    wordStates[currentWordIndex] = 3; // next focus
-                }
+            if (bestSpokenMatch != -1) {
+                wordStates[refIdx] = 1; // Green
+                spokenIdx = bestSpokenMatch + 1;
+                lastMatchedRefIdx = refIdx;
             } else {
-                // Token didn't match target word directly -> current word marked deviation
-                if (currentWordIndex < wordStates.length && wordStates[currentWordIndex] != 1) {
-                    wordStates[currentWordIndex] = 2; // mark red
+                // If we have advanced past this word in spoken stream, mark red
+                if (spokenIdx > 0 && spokenIdx < spokenTokenHistory.size()) {
+                    wordStates[refIdx] = 2; // Red (deviation/skipped)
                 }
             }
         }
 
-        renderReadingBoardSpannable();
-
-        // Check if finished entire text
-        if (currentWordIndex >= cleanWords.length - 1) {
-            showPronunciationDiagnosticReport();
+        // Determine current focus pointer
+        int focusIdx = (lastMatchedRefIdx + 1 < cleanWords.length) ? lastMatchedRefIdx + 1 : cleanWords.length - 1;
+        if (focusIdx < cleanWords.length && wordStates[focusIdx] == 0) {
+            wordStates[focusIdx] = 3; // Blue focus
         }
+
+        renderReadingBoardSpannable();
+        showPronunciationDiagnosticReport();
     }
 
     private boolean isWordMatch(String spoken, String target) {
+        if (spoken == null || target == null) return false;
         if (spoken.equals(target)) return true;
         if (spoken.contains(target) || target.contains(spoken)) return true;
         return getLevenshteinDistance(spoken, target) <= 1;
@@ -527,19 +591,32 @@ public class NativeLiveActivity extends Activity {
         final boolean en = I18n.isEnglish(this);
 
         int correctCount = 0;
+        int totalRead = 0;
         List<String> troubleWords = new ArrayList<String>();
         for (int i = 0; i < cleanWords.length; i++) {
             if (wordStates[i] == 1) {
                 correctCount++;
+                totalRead++;
             } else if (wordStates[i] == 2) {
+                totalRead++;
                 if (!troubleWords.contains(cleanWords[i])) {
                     troubleWords.add(cleanWords[i]);
                 }
             }
         }
 
-        int score = (int) Math.round((double) correctCount * 100.0 / Math.max(1, cleanWords.length));
-        String scoreMsg = (score >= 85 ? (en ? "🌟 Excellent (" : "🌟 發音優異 (") : (score >= 70 ? (en ? "👍 Good (" : "👍 良好 (") : (en ? "💪 Keep Practicing (" : "💪 再接再厲 ("))) + score + "%)";
+        if (totalRead == 0) {
+            scoreBadge.setText(en ? "Score: --" : "準確率：--");
+            TextView hintMsg = new TextView(this);
+            hintMsg.setText(en ? "Start reading whenever you're ready!" : "請隨時開口朗讀，系統將即時分析！");
+            hintMsg.setTextSize(12);
+            hintMsg.setTextColor(Color.parseColor("#94A3B8"));
+            troubleWordsContainer.addView(hintMsg);
+            return;
+        }
+
+        int score = (int) Math.round((double) correctCount * 100.0 / Math.max(1, totalRead));
+        String scoreMsg = (score >= 85 ? (en ? "🌟 Excellent (" : "🌟 發音優異 (") : (score >= 70 ? (en ? "👍 Good (" : "👍 良好 (") : (en ? "💪 Keep Practicing (" : "💪 再接再厲 ("))) + score + "% · " + correctCount + "/" + totalRead + ")";
         scoreBadge.setText(scoreMsg);
 
         if (troubleWords.isEmpty()) {
@@ -632,10 +709,12 @@ public class NativeLiveActivity extends Activity {
         }
     }
 
+    // ── 📚 Comprehensive English IPA Phonetic Knowledge Base ──
     private static final Map<String, String> IPA_MAP = new HashMap<String, String>();
     private static final Map<String, String> TIP_MAP = new HashMap<String, String>();
 
     static {
+        // Challenging phonetic traps & silent letters
         IPA_MAP.put("subtle", "/ˈsʌt.l/"); TIP_MAP.put("subtle", "b 不發音，重音在第一音節");
         IPA_MAP.put("comfortable", "/ˈkʌm.fər.tə.bəl/"); TIP_MAP.put("comfortable", "重音在 COM-，常縮唸成三音節");
         IPA_MAP.put("thorough", "/ˈθʌr.oʊ/"); TIP_MAP.put("thorough", "th 咬舌音，ough 發 /oʊ/");
@@ -649,16 +728,71 @@ public class NativeLiveActivity extends Activity {
         IPA_MAP.put("climbed", "/klaɪmd/"); TIP_MAP.put("climbed", "b 不發音，ed 發 /d/");
         IPA_MAP.put("island", "/ˈaɪ.lənd/"); TIP_MAP.put("island", "s 不發音");
         IPA_MAP.put("iron", "/ˈaɪ.ərn/"); TIP_MAP.put("iron", "r 弱化，唸 /ˈaɪ.ərn/");
+        IPA_MAP.put("chaos", "/ˈkeɪ.ɑːs/"); TIP_MAP.put("chaos", "ch 發 /k/ 音");
+        IPA_MAP.put("schedule", "/ˈskedʒ.uːl/"); TIP_MAP.put("schedule", "美式唸 /ˈskedʒ.uːl/");
+        IPA_MAP.put("colonel", "/ˈkɜː.nəl/"); TIP_MAP.put("colonel", "發音等同 kernel");
+        IPA_MAP.put("choir", "/ˈkwaɪ.ər/"); TIP_MAP.put("choir", "ch 發 /kw/ 音");
+        IPA_MAP.put("vehicle", "/ˈviː.ə.kəl/"); TIP_MAP.put("vehicle", "h 不發音，重音在第一音節");
+        IPA_MAP.put("salmon", "/ˈsæm.ən/"); TIP_MAP.put("salmon", "l 不發音");
+        IPA_MAP.put("almond", "/ˈɑː.mənd/"); TIP_MAP.put("almond", "l 不發音");
+        IPA_MAP.put("sword", "/sɔːrd/"); TIP_MAP.put("sword", "w 不發音");
+        IPA_MAP.put("tomb", "/tuːm/"); TIP_MAP.put("tomb", "b 不發音");
+        IPA_MAP.put("womb", "/wuːm/"); TIP_MAP.put("womb", "b 不發音");
+        IPA_MAP.put("debt", "/det/"); TIP_MAP.put("debt", "b 不發音");
+        IPA_MAP.put("doubt", "/daʊt/"); TIP_MAP.put("doubt", "b 不發音");
+        IPA_MAP.put("although", "/ɔːlˈðoʊ/"); TIP_MAP.put("although", "th 發濁音 /ð/，ough 發 /oʊ/");
+        IPA_MAP.put("throughout", "/θruːˈaʊt/"); TIP_MAP.put("throughout", "th 咬舌，out 為雙元音");
+        IPA_MAP.put("research", "/ˈriː.sɜːtʃ/"); TIP_MAP.put("research", "重音在第一或第二音節");
+        IPA_MAP.put("capture", "/ˈkæp.tʃər/"); TIP_MAP.put("capture", "ture 發 /tʃər/ 音");
+        IPA_MAP.put("incredible", "/ɪnˈkred.ə.bəl/"); TIP_MAP.put("incredible", "重音在 kred-");
+        IPA_MAP.put("clarity", "/ˈklær.ə.ti/"); TIP_MAP.put("clarity", "重音在第一音節");
+        IPA_MAP.put("presentation", "/ˌprez.ənˈteɪ.ʃən/"); TIP_MAP.put("presentation", "重音在 -ta-");
+        IPA_MAP.put("milestones", "/ˈmaɪl.stoʊnz/"); TIP_MAP.put("milestones", "複合字，重音在 mile-");
+        IPA_MAP.put("forecasts", "/ˈfɔːr.kæsts/"); TIP_MAP.put("forecasts", "注意尾音 sts");
+        IPA_MAP.put("leveraging", "/ˈlev.ər.ɪ.dʒɪŋ/"); TIP_MAP.put("leveraging", "重音在 lev-");
+        IPA_MAP.put("streamlined", "/ˈstriːm.laɪnd/"); TIP_MAP.put("streamlined", "注意 /str/ 連音");
+        IPA_MAP.put("productivity", "/ˌproʊ.dʌkˈtɪv.ə.ti/"); TIP_MAP.put("productivity", "重音在 -tiv-");
+        IPA_MAP.put("artificial", "/ˌɑːr.t̬əˈfɪʃ.əl/"); TIP_MAP.put("artificial", "ti 發 /ʃ/ 輕音");
+        IPA_MAP.put("intelligence", "/ɪnˈtel.ə.dʒəns/"); TIP_MAP.put("intelligence", "重音在 tel-");
+        IPA_MAP.put("dogma", "/ˈdɑːɡ.mə/"); TIP_MAP.put("dogma", "重音在 第一音節");
+        IPA_MAP.put("hungry", "/ˈhʌŋ.ɡri/"); TIP_MAP.put("hungry", "ng 發 /ŋg/ 音");
+        IPA_MAP.put("foolish", "/ˈfuː.lɪʃ/"); TIP_MAP.put("foolish", "oo 發長母音 /uː/");
     }
 
     private String getIpaForWord(String word) {
-        if (IPA_MAP.containsKey(word)) return IPA_MAP.get(word);
-        return "/" + word + "/";
+        if (word == null || word.isEmpty()) return "//";
+        String clean = word.toLowerCase().trim();
+        if (IPA_MAP.containsKey(clean)) return IPA_MAP.get(clean);
+
+        // Algorithmic G2P standard IPA generator for any other English words
+        StringBuilder ipa = new StringBuilder("/");
+        String w = clean;
+        w = w.replaceAll("tion$", "ʃən");
+        w = w.replaceAll("sion$", "ʒən");
+        w = w.replaceAll("ture$", "tʃər");
+        w = w.replaceAll("ph", "f");
+        w = w.replaceAll("sh", "ʃ");
+        w = w.replaceAll("ch", "tʃ");
+        w = w.replaceAll("th", "θ");
+        w = w.replaceAll("ee", "iː");
+        w = w.replaceAll("oo", "uː");
+        w = w.replaceAll("ing$", "ɪŋ");
+        w = w.replaceAll("ed$", "d");
+        ipa.append(w);
+        ipa.append("/");
+        return ipa.toString();
     }
 
     private String getTipForWord(String word) {
-        if (TIP_MAP.containsKey(word)) return TIP_MAP.get(word);
-        return "注意母音飽滿度與重音位置";
+        if (word == null) return "注意母音與重音位置";
+        String clean = word.toLowerCase().trim();
+        if (TIP_MAP.containsKey(clean)) return TIP_MAP.get(clean);
+
+        if (clean.endsWith("tion") || clean.endsWith("sion")) return "重音在倒數第二音節";
+        if (clean.contains("th")) return "注意 th 舌尖輕觸上齒";
+        if (clean.endsWith("ed")) return "注意結尾 /t/ 或 /d/ 輕音";
+        if (clean.endsWith("ing")) return "注意尾音 /ŋ/ 鼻音";
+        return "注意母音飽滿度與音節重音";
     }
 
     private void toggleCall() {
@@ -841,3 +975,4 @@ public class NativeLiveActivity extends Activity {
         super.onDestroy();
     }
 }
+
