@@ -784,18 +784,18 @@ public class NativeGeminiLiveClient {
         if (!running) return false;
         long now = System.currentTimeMillis();
         if (usingOboeOutput) {
-            return NativeOboeOutput.getBufferedMs() > 0 || (lastPlaybackActiveAt > 0 && now < lastPlaybackActiveAt + 200);
+            return NativeOboeOutput.getBufferedMs() > 0 || (lastPlaybackActiveAt > 0 && now < lastPlaybackActiveAt + 150);
         }
         boolean trackActive = false;
         synchronized (playerLock) {
             if (player != null && player.getPlayState() == AudioTrack.PLAYSTATE_PLAYING) {
                 long head = player.getPlaybackHeadPosition() & 0xFFFFFFFFL;
-                if (totalFramesWritten > head + 240) {
+                if (totalFramesWritten > head + 240 && (lastPlaybackActiveAt == 0 || now < lastPlaybackActiveAt + 200)) {
                     trackActive = true;
                 }
             }
         }
-        return !audioQueue.isEmpty() || trackActive || (lastPlaybackActiveAt > 0 && now < lastPlaybackActiveAt + 200);
+        return !audioQueue.isEmpty() || trackActive || (lastPlaybackActiveAt > 0 && now < lastPlaybackActiveAt + 150);
     }
 
     private double calculateRms(byte[] pcm, int count) {

@@ -1003,9 +1003,7 @@ public class NativeLiveActivity extends Activity {
             currentChatTurn.keyVocab = cleanVocab;
             currentChatTurn.hints.clear();
             if (hints != null) currentChatTurn.hints.addAll(hints);
-            if (client != null && !client.isAiSpeaking()) {
-                currentChatTurn.translationRevealed = true;
-            }
+            currentChatTurn.translationRevealed = true;
             renderChatCards();
             return;
         }

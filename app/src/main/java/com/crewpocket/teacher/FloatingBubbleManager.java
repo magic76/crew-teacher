@@ -568,9 +568,7 @@ public class FloatingBubbleManager {
                     currentBubbleChatTurn.keyVocab = cleanVocab;
                     currentBubbleChatTurn.hints.clear();
                     if (hints != null) currentBubbleChatTurn.hints.addAll(hints);
-                    if (!NativeLiveService.isAiSpeaking()) {
-                        currentBubbleChatTurn.translationRevealed = true;
-                    }
+                    currentBubbleChatTurn.translationRevealed = true;
                     renderBubbleChatCards();
                     return;
                 }
