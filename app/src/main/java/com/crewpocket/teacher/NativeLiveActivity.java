@@ -8,6 +8,13 @@ import android.graphics.drawable.GradientDrawable;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
+import android.speech.tts.TextToSpeech;
+import android.text.SpannableStringBuilder;
+import android.text.Spanned;
+import android.text.style.BackgroundColorSpan;
+import android.text.style.ForegroundColorSpan;
+import android.text.style.StyleSpan;
+import android.text.style.UnderlineSpan;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
@@ -17,8 +24,15 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+
 public class NativeLiveActivity extends Activity {
     private static final int REQUEST_RECORD_AUDIO = 301;
+
     private TextView statusDot;
     private TextView statusText;
     private TextView transcript;
@@ -28,6 +42,20 @@ public class NativeLiveActivity extends Activity {
     private Button muteButton;
     private NativeGeminiLiveClient client;
     private final Handler handler = new Handler();
+
+    // ── 📖 Option 1: Word-by-Word Real-Time Color Feedback & Diagnostic Card ──
+    private boolean isShadowingMode = false;
+    private String fullReadingText = "";
+    private String[] rawWords;
+    private String[] cleanWords;
+    private int[] wordStates; // 0 = Pending (grey), 1 = Correct (green), 2 = Mispronounced/Skipped (red), 3 = Current (cyan)
+    private int currentWordIndex = 0;
+    private TextView readingBoardText;
+    private LinearLayout diagnosticCard;
+    private TextView scoreBadge;
+    private LinearLayout troubleWordsContainer;
+    private TextToSpeech tts;
+    private boolean ttsReady = false;
 
     private int dp(float val) {
         return CrewTheme.dp(this, val);
@@ -43,13 +71,18 @@ public class NativeLiveActivity extends Activity {
         }
         getWindow().getDecorView().setBackgroundColor(CrewTheme.BG_PRIMARY);
 
+        final boolean en = I18n.isEnglish(this);
+        String teachingMode = AppConfig.getTeachingMode(this);
+        isShadowingMode = "shadowing".equals(teachingMode);
+        fullReadingText = AppConfig.getReadingText(this);
+
+        initTts();
+
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(dp(20), dp(24), dp(20), dp(24));
+        root.setPadding(dp(18), dp(20), dp(18), dp(20));
         root.setBackgroundColor(CrewTheme.BG_PRIMARY);
         root.setLayoutParams(new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
-
-        boolean en = I18n.isEnglish(this);
 
         // 1. Back button & Title
         LinearLayout header = new LinearLayout(this);
@@ -61,16 +94,18 @@ public class NativeLiveActivity extends Activity {
         backBtn.setTextSize(15);
         backBtn.setTextColor(CrewTheme.INDIGO_400);
         backBtn.setTypeface(Typeface.DEFAULT_BOLD);
-        backBtn.setPadding(0, 0, dp(16), 0);
+        backBtn.setPadding(0, 0, dp(14), 0);
         backBtn.setOnClickListener(new View.OnClickListener() {
             @Override public void onClick(View v) { finish(); }
         });
         header.addView(backBtn);
 
         TextView title = new TextView(this);
-        title.setText(en ? "🎓 Oral Practice Classroom" : "🎓 口語即時對話教室");
+        title.setText(isShadowingMode
+                ? (en ? "📖 Reading & Pronunciation Coach" : "📖 朗讀高亮與發音診斷")
+                : (en ? "🎓 Oral Practice Classroom" : "🎓 口語即時對話教室"));
         title.setTextColor(Color.WHITE);
-        title.setTextSize(18);
+        title.setTextSize(17);
         title.setTypeface(Typeface.DEFAULT_BOLD);
         header.addView(title);
         root.addView(header);
@@ -79,26 +114,26 @@ public class NativeLiveActivity extends Activity {
         LinearLayout statusBox = new LinearLayout(this);
         statusBox.setOrientation(LinearLayout.HORIZONTAL);
         statusBox.setGravity(Gravity.CENTER_VERTICAL);
-        statusBox.setPadding(dp(14), dp(10), dp(14), dp(10));
+        statusBox.setPadding(dp(12), dp(8), dp(12), dp(8));
         GradientDrawable sbg = new GradientDrawable();
         sbg.setColor(Color.parseColor("#1E293B"));
         sbg.setCornerRadius(dp(12));
         statusBox.setBackground(sbg);
         LinearLayout.LayoutParams sLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        sLp.setMargins(0, dp(18), 0, dp(16));
+        sLp.setMargins(0, dp(12), 0, dp(12));
         statusBox.setLayoutParams(sLp);
 
         statusDot = new TextView(this);
         statusDot.setText("●");
-        statusDot.setTextSize(14);
+        statusDot.setTextSize(13);
         statusDot.setTextColor(CrewTheme.TEXT_MUTED);
         statusDot.setPadding(0, 0, dp(8), 0);
         statusBox.addView(statusDot);
 
         statusText = new TextView(this);
-        statusText.setText(en ? "Standby (Tap Start below)" : "待命中（點擊下方開始通話）");
+        statusText.setText(en ? "Standby (Tap Start below)" : "待命中（點擊下方開始練習）");
         statusText.setTextColor(CrewTheme.TEXT_SECONDARY);
-        statusText.setTextSize(13);
+        statusText.setTextSize(12);
         statusText.setTypeface(Typeface.DEFAULT_BOLD);
         statusBox.addView(statusText, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
 
@@ -107,106 +142,174 @@ public class NativeLiveActivity extends Activity {
         meterText.setTextColor(CrewTheme.TEXT_MUTED);
         meterText.setTextSize(11);
         statusBox.addView(meterText);
-
         root.addView(statusBox);
 
-        // 2.5 Reading Material Card (If shadowing mode is active)
-        String teachingMode = AppConfig.getTeachingMode(this);
-        if ("shadowing".equals(teachingMode)) {
-            LinearLayout readingCard = new LinearLayout(this);
-            readingCard.setOrientation(LinearLayout.VERTICAL);
-            readingCard.setPadding(dp(14), dp(10), dp(14), dp(10));
-            GradientDrawable rBg = new GradientDrawable();
-            rBg.setColor(Color.parseColor("#1E1B4B"));
-            rBg.setCornerRadius(dp(14));
-            rBg.setStroke(dp(1), Color.parseColor("#6366F1"));
-            readingCard.setBackground(rBg);
-            LinearLayout.LayoutParams rLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-            rLp.setMargins(0, 0, 0, dp(14));
-            readingCard.setLayoutParams(rLp);
+        // 3. Main Area: If Shadowing mode -> Interactive Reading Board + Diagnostic Card
+        if (isShadowingMode) {
+            setupReadingData();
 
-            LinearLayout rHeader = new LinearLayout(this);
-            rHeader.setOrientation(LinearLayout.HORIZONTAL);
-            rHeader.setGravity(Gravity.CENTER_VERTICAL);
+            ScrollView readingScroll = new ScrollView(this);
+            readingScroll.setFillViewport(true);
+            LinearLayout.LayoutParams rslp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f);
+            rslp.setMargins(0, 0, 0, dp(14));
+            readingScroll.setLayoutParams(rslp);
 
-            TextView rTitle = new TextView(this);
-            rTitle.setText(en ? "📖 Reading Text (AI actively listening)" : "📖 朗讀教材 (請大聲朗讀，AI 即時糾音)");
-            rTitle.setTextSize(12);
-            rTitle.setTextColor(Color.parseColor("#A5B4FC"));
-            rTitle.setTypeface(Typeface.DEFAULT_BOLD);
-            rHeader.addView(rTitle, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+            LinearLayout readingContainer = new LinearLayout(this);
+            readingContainer.setOrientation(LinearLayout.VERTICAL);
 
-            readingCard.addView(rHeader);
+            // 3.1 Word-by-Word Color Board Card
+            LinearLayout boardCard = new LinearLayout(this);
+            boardCard.setOrientation(LinearLayout.VERTICAL);
+            boardCard.setPadding(dp(16), dp(14), dp(16), dp(14));
+            GradientDrawable bBg = new GradientDrawable();
+            bBg.setColor(Color.parseColor("#0F172A"));
+            bBg.setCornerRadius(dp(16));
+            bBg.setStroke(dp(1), Color.parseColor("#334155"));
+            boardCard.setBackground(bBg);
 
-            TextView rText = new TextView(this);
-            rText.setText(AppConfig.getReadingText(this));
-            rText.setTextColor(Color.WHITE);
-            rText.setTextSize(14);
-            rText.setTypeface(Typeface.create("sans-serif", Typeface.BOLD));
-            rText.setLineSpacing(dp(3), 1.2f);
-            rText.setPadding(0, dp(6), 0, dp(4));
-            readingCard.addView(rText);
+            LinearLayout bHeader = new LinearLayout(this);
+            bHeader.setOrientation(LinearLayout.HORIZONTAL);
+            bHeader.setGravity(Gravity.CENTER_VERTICAL);
 
-            TextView rHint = new TextView(this);
-            rHint.setText(en ? "💡 Read naturally. AI stays silent when accurate and speaks up immediately to correct pronunciation issues." : "💡 請大聲朗讀上方文字。發音標準時 AI 保持安靜聆聽，若發音或重音有偏差會即時插話示範！");
-            rHint.setTextSize(11);
-            rHint.setTextColor(Color.parseColor("#38BDF8"));
-            readingCard.addView(rHint);
+            TextView bTitle = new TextView(this);
+            bTitle.setText(en ? "📖 Real-time Reading Board (Colors as you speak)" : "📖 即時朗讀板（說話時自動變色）");
+            bTitle.setTextSize(12);
+            bTitle.setTextColor(Color.parseColor("#38BDF8"));
+            bTitle.setTypeface(Typeface.DEFAULT_BOLD);
+            bHeader.addView(bTitle, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
 
-            root.addView(readingCard);
-        }
-
-        // 3. Transcript Card
-        LinearLayout transcriptCard = new LinearLayout(this);
-        transcriptCard.setOrientation(LinearLayout.VERTICAL);
-        transcriptCard.setPadding(dp(16), dp(14), dp(16), dp(14));
-        transcriptCard.setBackground(CrewTheme.createCard(this, CrewTheme.BG_CARD, CrewTheme.BORDER_DEFAULT, 16));
-        LinearLayout.LayoutParams tLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f);
-        tLp.setMargins(0, 0, 0, dp(18));
-        transcriptCard.setLayoutParams(tLp);
-
-        TextView tTitle = new TextView(this);
-        tTitle.setText(en ? "💬 Real-time Transcript" : "💬 即時對話逐字紀錄");
-        tTitle.setTextSize(12);
-        tTitle.setTextColor(CrewTheme.TEXT_MUTED);
-        tTitle.setTypeface(Typeface.DEFAULT_BOLD);
-        transcriptCard.addView(tTitle);
-
-        transcriptScrollView = new ScrollView(this);
-        transcriptScrollView.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
-        transcriptScrollView.setPadding(0, dp(8), 0, 0);
-
-        transcript = new TextView(this);
-        if ("shadowing".equals(teachingMode)) {
-            transcript.setText(en
-                    ? "Tap 'Start Practice' below to connect with your Real-time Reading Coach.\nRead the passage above aloud into your phone. If your pronunciation, vowels, or stress is off, AI will actively interrupt to guide you!"
-                    : "點擊下方「開始口語對話」連線至即時朗讀糾音教練。\n請直接對著手機朗讀上方文章，若發音或重音有偏差，AI 會即時出聲打斷並示範正確讀法！");
-        } else {
-            transcript.setText(en
-                    ? "Tap 'Start Oral Practice' below to connect with Gemini Live.\nSpeak naturally to your phone and the AI tutor will give instant spoken responses and guidance!"
-                    : "點擊下方「開始口語對話」連線至 Gemini Live 語音引擎。\n連線後直接對著手機說話，AI 外教會即時給予語音回應與引導！");
-        }
-        transcript.setTextColor(CrewTheme.TEXT_PRIMARY);
-        transcript.setTextSize(14);
-        transcript.setLineSpacing(dp(3), 1.2f);
-        transcript.addOnLayoutChangeListener(new View.OnLayoutChangeListener() {
-            @Override
-            public void onLayoutChange(View v, int left, int top, int right, int bottom, int oldLeft, int oldTop, int oldRight, int oldBottom) {
-                if (transcriptScrollView != null) {
-                    transcriptScrollView.post(new Runnable() {
-                        @Override public void run() {
-                            if (transcriptScrollView != null) {
-                                transcriptScrollView.fullScroll(View.FOCUS_DOWN);
-                            }
-                        }
-                    });
+            // Reset / Restart Button
+            TextView resetBtn = new TextView(this);
+            resetBtn.setText(en ? "🔄 Restart" : "🔄 重新朗讀");
+            resetBtn.setTextSize(11);
+            resetBtn.setTextColor(Color.parseColor("#94A3B8"));
+            resetBtn.setPadding(dp(6), dp(2), dp(6), dp(2));
+            resetBtn.setOnClickListener(new View.OnClickListener() {
+                @Override public void onClick(View v) {
+                    resetReadingBoard();
                 }
-            }
-        });
-        transcriptScrollView.addView(transcript);
-        transcriptCard.addView(transcriptScrollView);
+            });
+            bHeader.addView(resetBtn);
+            boardCard.addView(bHeader);
 
-        root.addView(transcriptCard);
+            // Legend Row
+            LinearLayout legendRow = new LinearLayout(this);
+            legendRow.setOrientation(LinearLayout.HORIZONTAL);
+            legendRow.setPadding(0, dp(6), 0, dp(8));
+            legendRow.addView(makeLegendDot("#22C55E", en ? "Correct" : "正確"));
+            legendRow.addView(makeLegendDot("#EF4444", en ? "Mispronounced" : "偏差/漏字"));
+            legendRow.addView(makeLegendDot("#38BDF8", en ? "Current" : "朗讀焦點"));
+            boardCard.addView(legendRow);
+
+            readingBoardText = new TextView(this);
+            readingBoardText.setTextSize(16);
+            readingBoardText.setLineSpacing(dp(6), 1.25f);
+            readingBoardText.setTypeface(Typeface.create("sans-serif", Typeface.BOLD));
+            readingBoardText.setPadding(0, dp(6), 0, dp(6));
+            boardCard.addView(readingBoardText);
+            renderReadingBoardSpannable();
+
+            readingContainer.addView(boardCard);
+
+            // 3.2 Pronunciation Diagnostic Card
+            diagnosticCard = new LinearLayout(this);
+            diagnosticCard.setOrientation(LinearLayout.VERTICAL);
+            diagnosticCard.setPadding(dp(16), dp(14), dp(16), dp(14));
+            GradientDrawable dBg = new GradientDrawable();
+            dBg.setColor(Color.parseColor("#1E1B4B"));
+            dBg.setCornerRadius(dp(16));
+            dBg.setStroke(dp(1), Color.parseColor("#6366F1"));
+            diagnosticCard.setBackground(dBg);
+            LinearLayout.LayoutParams dLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            dLp.setMargins(0, dp(12), 0, 0);
+            diagnosticCard.setLayoutParams(dLp);
+
+            LinearLayout dHeader = new LinearLayout(this);
+            dHeader.setOrientation(LinearLayout.HORIZONTAL);
+            dHeader.setGravity(Gravity.CENTER_VERTICAL);
+
+            TextView dTitle = new TextView(this);
+            dTitle.setText(en ? "🎯 Pronunciation Assessment" : "🎯 發音體檢診斷卡");
+            dTitle.setTextSize(13);
+            dTitle.setTextColor(Color.parseColor("#C7D2FE"));
+            dTitle.setTypeface(Typeface.DEFAULT_BOLD);
+            dHeader.addView(dTitle, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+
+            scoreBadge = new TextView(this);
+            scoreBadge.setText(en ? "Score: --" : "準確率：--");
+            scoreBadge.setTextSize(12);
+            scoreBadge.setTextColor(Color.parseColor("#34D399"));
+            scoreBadge.setTypeface(Typeface.DEFAULT_BOLD);
+            dHeader.addView(scoreBadge);
+            diagnosticCard.addView(dHeader);
+
+            troubleWordsContainer = new LinearLayout(this);
+            troubleWordsContainer.setOrientation(LinearLayout.VERTICAL);
+            troubleWordsContainer.setPadding(0, dp(8), 0, 0);
+
+            TextView hintMsg = new TextView(this);
+            hintMsg.setText(en
+                    ? "Read the text above naturally. When you finish, the diagnostic analysis and IPA tips will appear here!"
+                    : "請直接對著手機自然大聲朗讀上方文字。讀完後，系統與 AI 會在這裡列出發音偏差單字與標準音標！");
+            hintMsg.setTextSize(12);
+            hintMsg.setTextColor(Color.parseColor("#94A3B8"));
+            troubleWordsContainer.addView(hintMsg);
+
+            diagnosticCard.addView(troubleWordsContainer);
+            readingContainer.addView(diagnosticCard);
+
+            transcript = new TextView(this);
+            transcript.setVisibility(View.GONE);
+
+            readingScroll.addView(readingContainer);
+            root.addView(readingScroll);
+
+        } else {
+            // Standard Conversational Classroom Transcript Card
+            LinearLayout transcriptCard = new LinearLayout(this);
+            transcriptCard.setOrientation(LinearLayout.VERTICAL);
+            transcriptCard.setPadding(dp(16), dp(14), dp(16), dp(14));
+            transcriptCard.setBackground(CrewTheme.createCard(this, CrewTheme.BG_CARD, CrewTheme.BORDER_DEFAULT, 16));
+            LinearLayout.LayoutParams tLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f);
+            tLp.setMargins(0, 0, 0, dp(18));
+            transcriptCard.setLayoutParams(tLp);
+
+            TextView tTitle = new TextView(this);
+            tTitle.setText(en ? "💬 Real-time Transcript" : "💬 即時對話逐字紀錄");
+            tTitle.setTextSize(12);
+            tTitle.setTextColor(CrewTheme.TEXT_MUTED);
+            tTitle.setTypeface(Typeface.DEFAULT_BOLD);
+            transcriptCard.addView(tTitle);
+
+            transcriptScrollView = new ScrollView(this);
+            transcriptScrollView.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+            transcriptScrollView.setPadding(0, dp(8), 0, 0);
+
+            transcript = new TextView(this);
+            transcript.setText(en
+                    ? "Tap 'Start Practice' below to connect with Gemini Live.\nSpeak naturally to your phone and the AI tutor will give instant spoken responses and guidance!"
+                    : "點擊下方「開始口語對話」連線至 Gemini Live 語音引擎。\n連線後直接對著手機說話，AI 外教會即時給予語音回應與引導！");
+            transcript.setTextColor(CrewTheme.TEXT_PRIMARY);
+            transcript.setTextSize(14);
+            transcript.setLineSpacing(dp(3), 1.2f);
+            transcript.addOnLayoutChangeListener(new View.OnLayoutChangeListener() {
+                @Override
+                public void onLayoutChange(View v, int left, int top, int right, int bottom, int oldLeft, int oldTop, int oldRight, int oldBottom) {
+                    if (transcriptScrollView != null) {
+                        transcriptScrollView.post(new Runnable() {
+                            @Override public void run() {
+                                if (transcriptScrollView != null) {
+                                    transcriptScrollView.fullScroll(View.FOCUS_DOWN);
+                                }
+                            }
+                        });
+                    }
+                }
+            });
+            transcriptScrollView.addView(transcript);
+            transcriptCard.addView(transcriptScrollView);
+            root.addView(transcriptCard);
+        }
 
         // 4. Control Buttons Row
         LinearLayout controls = new LinearLayout(this);
@@ -214,7 +317,9 @@ public class NativeLiveActivity extends Activity {
         controls.setGravity(Gravity.CENTER);
 
         callButton = new Button(this);
-        callButton.setText(en ? "🎙️ Start Practice" : "🎙️ 開始口語對話");
+        callButton.setText(isShadowingMode
+                ? (en ? "🎙️ Start Reading" : "🎙️ 開始朗讀練習")
+                : (en ? "🎙️ Start Practice" : "🎙️ 開始口語對話"));
         callButton.setTextColor(Color.WHITE);
         callButton.setTextSize(15);
         callButton.setTypeface(Typeface.DEFAULT_BOLD);
@@ -254,9 +359,314 @@ public class NativeLiveActivity extends Activity {
         setContentView(root);
     }
 
+    private View makeLegendDot(String colorHex, String label) {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(0, 0, dp(12), 0);
+
+        TextView dot = new TextView(this);
+        dot.setText("● ");
+        dot.setTextSize(10);
+        dot.setTextColor(Color.parseColor(colorHex));
+        row.addView(dot);
+
+        TextView lbl = new TextView(this);
+        lbl.setText(label);
+        lbl.setTextSize(10);
+        lbl.setTextColor(Color.parseColor("#94A3B8"));
+        row.addView(lbl);
+        return row;
+    }
+
+    private void setupReadingData() {
+        if (fullReadingText == null || fullReadingText.trim().isEmpty()) {
+            fullReadingText = AppConfig.DEFAULT_READING_TEXT;
+        }
+        rawWords = fullReadingText.trim().split("\\s+");
+        cleanWords = new String[rawWords.length];
+        wordStates = new int[rawWords.length];
+        for (int i = 0; i < rawWords.length; i++) {
+            cleanWords[i] = rawWords[i].replaceAll("[^a-zA-Z0-9]", "").toLowerCase();
+            wordStates[i] = 0; // pending
+        }
+        currentWordIndex = 0;
+        if (wordStates.length > 0) {
+            wordStates[0] = 3; // first word is focus
+        }
+    }
+
+    private void resetReadingBoard() {
+        if (wordStates != null) {
+            for (int i = 0; i < wordStates.length; i++) {
+                wordStates[i] = 0;
+            }
+            currentWordIndex = 0;
+            if (wordStates.length > 0) wordStates[0] = 3;
+            renderReadingBoardSpannable();
+        }
+        if (troubleWordsContainer != null) {
+            troubleWordsContainer.removeAllViews();
+            boolean en = I18n.isEnglish(this);
+            scoreBadge.setText(en ? "Score: --" : "準確率：--");
+            TextView hintMsg = new TextView(this);
+            hintMsg.setText(en ? "Start reading whenever you're ready!" : "點擊下方開始朗讀，系統將即時分析！");
+            hintMsg.setTextSize(12);
+            hintMsg.setTextColor(Color.parseColor("#94A3B8"));
+            troubleWordsContainer.addView(hintMsg);
+        }
+    }
+
+    private void renderReadingBoardSpannable() {
+        if (readingBoardText == null || rawWords == null) return;
+        SpannableStringBuilder ssb = new SpannableStringBuilder();
+
+        for (int i = 0; i < rawWords.length; i++) {
+            int start = ssb.length();
+            ssb.append(rawWords[i]);
+            int end = ssb.length();
+
+            int state = wordStates[i];
+            if (state == 1) {
+                // Correct -> Vibrant Green
+                ssb.setSpan(new ForegroundColorSpan(Color.parseColor("#22C55E")), start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                ssb.setSpan(new StyleSpan(Typeface.BOLD), start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            } else if (state == 2) {
+                // Mispronounced / Deviation -> Vivid Red + Underline
+                ssb.setSpan(new ForegroundColorSpan(Color.parseColor("#EF4444")), start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                ssb.setSpan(new UnderlineSpan(), start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                ssb.setSpan(new StyleSpan(Typeface.BOLD), start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            } else if (state == 3) {
+                // Current Focus -> Sky Blue Highlight
+                ssb.setSpan(new ForegroundColorSpan(Color.parseColor("#38BDF8")), start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                ssb.setSpan(new BackgroundColorSpan(Color.parseColor("#1E3A8A")), start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                ssb.setSpan(new StyleSpan(Typeface.BOLD), start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            } else {
+                // Pending -> Muted Silver/Gray
+                ssb.setSpan(new ForegroundColorSpan(Color.parseColor("#94A3B8")), start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            }
+
+            if (i < rawWords.length - 1) {
+                ssb.append(" ");
+            }
+        }
+        readingBoardText.setText(ssb);
+    }
+
+    private void processSpokenTextForShadowing(String spokenChunk) {
+        if (spokenChunk == null || cleanWords == null || currentWordIndex >= cleanWords.length) return;
+        String[] tokens = spokenChunk.trim().split("\\s+");
+
+        for (String token : tokens) {
+            String cleanToken = token.replaceAll("[^a-zA-Z0-9]", "").toLowerCase();
+            if (cleanToken.isEmpty()) continue;
+
+            // Search matching forward within a window of 3 words
+            int matchIdx = -1;
+            int lookAhead = Math.min(cleanWords.length, currentWordIndex + 3);
+            for (int i = currentWordIndex; i < lookAhead; i++) {
+                if (isWordMatch(cleanToken, cleanWords[i])) {
+                    matchIdx = i;
+                    break;
+                }
+            }
+
+            if (matchIdx != -1) {
+                // Mark skipped words as mispronounced/skipped
+                for (int j = currentWordIndex; j < matchIdx; j++) {
+                    if (wordStates[j] == 0 || wordStates[j] == 3) {
+                        wordStates[j] = 2; // red
+                    }
+                }
+                wordStates[matchIdx] = 1; // green (matched)
+                currentWordIndex = matchIdx + 1;
+                if (currentWordIndex < wordStates.length) {
+                    wordStates[currentWordIndex] = 3; // next focus
+                }
+            } else {
+                // Token didn't match target word directly -> current word marked deviation
+                if (currentWordIndex < wordStates.length && wordStates[currentWordIndex] != 1) {
+                    wordStates[currentWordIndex] = 2; // mark red
+                }
+            }
+        }
+
+        renderReadingBoardSpannable();
+
+        // Check if finished entire text
+        if (currentWordIndex >= cleanWords.length - 1) {
+            showPronunciationDiagnosticReport();
+        }
+    }
+
+    private boolean isWordMatch(String spoken, String target) {
+        if (spoken.equals(target)) return true;
+        if (spoken.contains(target) || target.contains(spoken)) return true;
+        return getLevenshteinDistance(spoken, target) <= 1;
+    }
+
+    private int getLevenshteinDistance(String s1, String s2) {
+        int[] costs = new int[s2.length() + 1];
+        for (int j = 0; j < costs.length; j++) costs[j] = j;
+        for (int i = 1; i <= s1.length(); i++) {
+            costs[0] = i;
+            int nw = i - 1;
+            for (int j = 1; j <= s2.length(); j++) {
+                int cj = Math.min(1 + Math.min(costs[j], costs[j - 1]),
+                        s1.charAt(i - 1) == s2.charAt(j - 1) ? nw : nw + 1);
+                nw = costs[j];
+                costs[j] = cj;
+            }
+        }
+        return costs[s2.length()];
+    }
+
+    private void showPronunciationDiagnosticReport() {
+        if (troubleWordsContainer == null || cleanWords == null) return;
+        troubleWordsContainer.removeAllViews();
+        final boolean en = I18n.isEnglish(this);
+
+        int correctCount = 0;
+        List<String> troubleWords = new ArrayList<String>();
+        for (int i = 0; i < cleanWords.length; i++) {
+            if (wordStates[i] == 1) {
+                correctCount++;
+            } else if (wordStates[i] == 2) {
+                if (!troubleWords.contains(cleanWords[i])) {
+                    troubleWords.add(cleanWords[i]);
+                }
+            }
+        }
+
+        int score = (int) Math.round((double) correctCount * 100.0 / Math.max(1, cleanWords.length));
+        String scoreMsg = (score >= 85 ? (en ? "🌟 Excellent (" : "🌟 發音優異 (") : (score >= 70 ? (en ? "👍 Good (" : "👍 良好 (") : (en ? "💪 Keep Practicing (" : "💪 再接再厲 ("))) + score + "%)";
+        scoreBadge.setText(scoreMsg);
+
+        if (troubleWords.isEmpty()) {
+            TextView perfectText = new TextView(this);
+            perfectText.setText(en ? "🎉 100% Perfect Pronunciation! Every word was accurate." : "🎉 完美發音！所有單字皆精準到位、咬字流暢！");
+            perfectText.setTextSize(12);
+            perfectText.setTextColor(Color.parseColor("#34D399"));
+            perfectText.setPadding(0, dp(4), 0, dp(4));
+            troubleWordsContainer.addView(perfectText);
+            return;
+        }
+
+        TextView sectionTitle = new TextView(this);
+        sectionTitle.setText(en ? "⚠️ Words needing practice (Tap 🔊 to listen):" : "⚠️ 需加強單字清單（點擊 🔊 聽標準發音）：");
+        sectionTitle.setTextSize(12);
+        sectionTitle.setTextColor(Color.parseColor("#FCA5A5"));
+        sectionTitle.setTypeface(Typeface.DEFAULT_BOLD);
+        sectionTitle.setPadding(0, 0, 0, dp(6));
+        troubleWordsContainer.addView(sectionTitle);
+
+        for (final String word : troubleWords) {
+            LinearLayout itemRow = new LinearLayout(this);
+            itemRow.setOrientation(LinearLayout.HORIZONTAL);
+            itemRow.setGravity(Gravity.CENTER_VERTICAL);
+            itemRow.setPadding(dp(10), dp(6), dp(10), dp(6));
+            GradientDrawable iBg = new GradientDrawable();
+            iBg.setColor(Color.parseColor("#312E81"));
+            iBg.setCornerRadius(dp(10));
+            itemRow.setBackground(iBg);
+            LinearLayout.LayoutParams iLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            iLp.setMargins(0, 0, 0, dp(6));
+            itemRow.setLayoutParams(iLp);
+
+            LinearLayout textCol = new LinearLayout(this);
+            textCol.setOrientation(LinearLayout.VERTICAL);
+
+            TextView wordName = new TextView(this);
+            wordName.setText(word);
+            wordName.setTextSize(14);
+            wordName.setTextColor(Color.WHITE);
+            wordName.setTypeface(Typeface.DEFAULT_BOLD);
+            textCol.addView(wordName);
+
+            String ipa = getIpaForWord(word);
+            String tip = getTipForWord(word);
+            TextView ipaText = new TextView(this);
+            ipaText.setText(ipa + " · " + tip);
+            ipaText.setTextSize(11);
+            ipaText.setTextColor(Color.parseColor("#A5B4FC"));
+            textCol.addView(ipaText);
+
+            itemRow.addView(textCol, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+
+            Button playBtn = new Button(this);
+            playBtn.setText("🔊 示範");
+            playBtn.setTextSize(11);
+            playBtn.setTextColor(Color.WHITE);
+            GradientDrawable pBg = new GradientDrawable();
+            pBg.setColor(Color.parseColor("#4F46E5"));
+            pBg.setCornerRadius(dp(8));
+            playBtn.setBackground(pBg);
+            playBtn.setOnClickListener(new View.OnClickListener() {
+                @Override public void onClick(View v) {
+                    speakWord(word);
+                }
+            });
+            itemRow.addView(playBtn, new LinearLayout.LayoutParams(dp(72), dp(32)));
+            troubleWordsContainer.addView(itemRow);
+        }
+    }
+
+    private void initTts() {
+        try {
+            tts = new TextToSpeech(this, new TextToSpeech.OnInitListener() {
+                @Override public void onInit(int status) {
+                    if (status == TextToSpeech.SUCCESS && tts != null) {
+                        tts.setLanguage(Locale.US);
+                        ttsReady = true;
+                    }
+                }
+            });
+        } catch (Exception ignored) {}
+    }
+
+    private void speakWord(String word) {
+        if (tts != null && ttsReady) {
+            tts.speak(word, TextToSpeech.QUEUE_FLUSH, null, "pronounce_" + word);
+        } else {
+            Toast.makeText(this, word, Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private static final Map<String, String> IPA_MAP = new HashMap<String, String>();
+    private static final Map<String, String> TIP_MAP = new HashMap<String, String>();
+
+    static {
+        IPA_MAP.put("subtle", "/ˈsʌt.l/"); TIP_MAP.put("subtle", "b 不發音，重音在第一音節");
+        IPA_MAP.put("comfortable", "/ˈkʌm.fər.tə.bəl/"); TIP_MAP.put("comfortable", "重音在 COM-，常縮唸成三音節");
+        IPA_MAP.put("thorough", "/ˈθʌr.oʊ/"); TIP_MAP.put("thorough", "th 咬舌音，ough 發 /oʊ/");
+        IPA_MAP.put("photographer", "/fəˈtɑː.ɡrə.fər/"); TIP_MAP.put("photographer", "重音在 pho-TO-gra-pher 第二音節");
+        IPA_MAP.put("depth", "/depθ/"); TIP_MAP.put("depth", "尾音 th 輕輕咬舌");
+        IPA_MAP.put("exhausted", "/ɪɡˈzɔː.stɪd/"); TIP_MAP.put("exhausted", "ex 發 /ɪɡz/ 音，h 不發音");
+        IPA_MAP.put("scenic", "/ˈsiː.nɪk/"); TIP_MAP.put("scenic", "c 不發音，發 /ˈsiː-/");
+        IPA_MAP.put("mountain", "/ˈmaʊn.tən/"); TIP_MAP.put("mountain", "注意 tain 發 /tən/ 輕音");
+        IPA_MAP.put("recipe", "/ˈres.ə.pi/"); TIP_MAP.put("recipe", "三音節，結尾發 /pi/");
+        IPA_MAP.put("climb", "/klaɪm/"); TIP_MAP.put("climb", "b 不發音");
+        IPA_MAP.put("climbed", "/klaɪmd/"); TIP_MAP.put("climbed", "b 不發音，ed 發 /d/");
+        IPA_MAP.put("island", "/ˈaɪ.lənd/"); TIP_MAP.put("island", "s 不發音");
+        IPA_MAP.put("iron", "/ˈaɪ.ərn/"); TIP_MAP.put("iron", "r 弱化，唸 /ˈaɪ.ərn/");
+    }
+
+    private String getIpaForWord(String word) {
+        if (IPA_MAP.containsKey(word)) return IPA_MAP.get(word);
+        return "/" + word + "/";
+    }
+
+    private String getTipForWord(String word) {
+        if (TIP_MAP.containsKey(word)) return TIP_MAP.get(word);
+        return "注意母音飽滿度與重音位置";
+    }
+
     private void toggleCall() {
         if (client != null && client.isRunning()) {
-            stopClient("使用者結束對話");
+            stopClient("練習已結束");
+            if (isShadowingMode) {
+                showPronunciationDiagnosticReport();
+            }
         } else {
             startClient();
         }
@@ -275,6 +685,10 @@ public class NativeLiveActivity extends Activity {
             return;
         }
 
+        if (isShadowingMode) {
+            resetReadingBoard();
+        }
+
         String voice = AppConfig.getVoiceName(this);
         String lang = AppConfig.getTutorLanguage(this);
         String persona = AppConfig.getTutorPersona(this);
@@ -286,7 +700,7 @@ public class NativeLiveActivity extends Activity {
         String customPrompt = AppConfig.getCustomSystemPrompt(this);
 
         updateStatus(CrewTheme.AMBER_400, "正在連線至語音引擎…");
-        callButton.setText("掛斷對話");
+        callButton.setText(isShadowingMode ? "完成朗讀 / 結束" : "掛斷對話");
         ((GradientDrawable) callButton.getBackground()).setColor(Color.parseColor("#E11D48"));
 
         client = new NativeGeminiLiveClient(this, apiKey, voice, lang, persona, noiseMode,
@@ -306,7 +720,7 @@ public class NativeLiveActivity extends Activity {
                         handler.post(new Runnable() {
                             @Override public void run() {
                                 updateStatus(CrewTheme.TEXT_MUTED, "已結束：" + reason);
-                                callButton.setText("🎙️ 開始口語對話");
+                                callButton.setText(isShadowingMode ? "🎙️ 開始朗讀練習" : "🎙️ 開始口語對話");
                                 ((GradientDrawable) callButton.getBackground()).setColor(Color.parseColor("#2563EB"));
                             }
                         });
@@ -316,7 +730,11 @@ public class NativeLiveActivity extends Activity {
                     public void onTranscript(final String text, final String role) {
                         handler.post(new Runnable() {
                             @Override public void run() {
-                                appendLiveTranscript(text, role);
+                                if (isShadowingMode && "user".equalsIgnoreCase(role)) {
+                                    processSpokenTextForShadowing(text);
+                                } else if (!isShadowingMode) {
+                                    appendLiveTranscript(text, role);
+                                }
                             }
                         });
                     }
@@ -325,7 +743,7 @@ public class NativeLiveActivity extends Activity {
                     public void onMicrophoneLevel(final double dbfs, final double gateDbfs, final boolean sending) {
                         handler.post(new Runnable() {
                             @Override public void run() {
-                                meterText.setText(sending ? String.format("🎙️ %.0f dB", dbfs) : "🔇 降噪/保護");
+                                meterText.setText(sending ? String.format("🎙️ %.0f dB", dbfs) : "🔇 降噪中");
                             }
                         });
                     }
@@ -335,9 +753,12 @@ public class NativeLiveActivity extends Activity {
                         handler.post(new Runnable() {
                             @Override public void run() {
                                 if (speaking) {
-                                    updateStatus(CrewTheme.CYAN_400, "🔊 導師回答中…");
+                                    updateStatus(CrewTheme.CYAN_400, isShadowingMode ? "🔊 AI 導師講評示範中…" : "🔊 導師回答中…");
+                                    if (isShadowingMode) {
+                                        showPronunciationDiagnosticReport();
+                                    }
                                 } else {
-                                    updateStatus(CrewTheme.EMERALD_400, "🎙️ 導師聆聽中，請說話");
+                                    updateStatus(CrewTheme.EMERALD_400, isShadowingMode ? "🎙️ 請大聲朗讀，即時分析中…" : "🎙️ 導師聆聽中，請說話");
                                 }
                             }
                         });
@@ -353,7 +774,7 @@ public class NativeLiveActivity extends Activity {
             client = null;
         }
         updateStatus(CrewTheme.TEXT_MUTED, reason);
-        callButton.setText("🎙️ 開始口語對話");
+        callButton.setText(isShadowingMode ? "🎙️ 開始朗讀練習" : "🎙️ 開始口語對話");
         ((GradientDrawable) callButton.getBackground()).setColor(Color.parseColor("#2563EB"));
     }
 
@@ -365,9 +786,9 @@ public class NativeLiveActivity extends Activity {
     private String lastTranscriptRole = "";
 
     private void appendLiveTranscript(String text, String role) {
-        if (text == null || text.isEmpty()) return;
+        if (transcript == null || text == null || text.isEmpty()) return;
         String existing = transcript.getText().toString();
-        if (existing.startsWith("點擊下方「開始口語對話」") || existing.startsWith("Tap 'Start Oral Practice'")) {
+        if (existing.startsWith("點擊下方「開始口語對話」") || existing.startsWith("Tap 'Start")) {
             existing = "";
         }
 
@@ -413,6 +834,10 @@ public class NativeLiveActivity extends Activity {
     @Override
     protected void onDestroy() {
         stopClient("離開頁面");
+        if (tts != null) {
+            try { tts.stop(); tts.shutdown(); } catch (Exception ignored) {}
+            tts = null;
+        }
         super.onDestroy();
     }
 }

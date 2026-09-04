@@ -416,24 +416,22 @@ public class NativeGeminiLiveClient {
         String rules;
 
         if ("shadowing".equals(teachingMode)) {
-            // 朗讀糾音模式：AI 即時聆聽朗讀，在發音/重音/漏字時主動打斷並糾正
+            // 朗讀與發音診斷教練模式：使用者自然流暢朗讀全文，AI 安靜聆聽，讀完後立即針對發音重點給予 2 句精準語音點評與示範
             String readingContent = AppConfig.getReadingText(context);
-            modeInstruction = "【Teaching Mode: ACTIVE PRONUNCIATION & READING COACH (朗讀與即時糾音教練模式)】\n"
-                    + "Mission: You are an active, real-time pronunciation, stress, and shadowing coach. The student is reading the following text aloud in " + langName + ":\n\n"
-                    + "--- READING TEXT START ---\n"
+            modeInstruction = "【Teaching Mode: NATURAL READING & PRONUNCIATION ASSESSMENT (自然朗讀與即時發音診斷)】\n"
+                    + "Mission: You are a professional, encouraging pronunciation coach. The student will read the following passage aloud naturally from beginning to end:\n\n"
+                    + "--- REFERENCE TEXT ---\n"
                     + readingContent + "\n"
-                    + "--- READING TEXT END ---\n\n"
-                    + "CRITICAL REAL-TIME INTERACTION PROTOCOL:\n"
-                    + "1. SILENT LISTENING WHILE CORRECT: While the student is reading accurately with standard pronunciation and reasonable fluency, REMAIN COMPLETELY SILENT. Do not interrupt correct reading.\n"
-                    + "2. INSTANT FRIENDLY INTERRUPTION ON MISTAKE: The MOMENT you detect a noticeable pronunciation error (e.g., mispronounced vowels/consonants, pronouncing silent letters like 'b' in 'subtle', incorrect word stress like 'COM-for-ta-ble', slurring, or skipping words), IMMEDIATELY SPEAK UP TO INTERRUPT:\n"
-                    + "   - Say warmly: \"Pause a moment! Let's check that word: '[mispronounced word]'. It should be pronounced /[phonetic tip]/. Let's try saying '[short phrase containing the word]'.\"\n"
-                    + "   - Keep your interruption under 2 concise sentences so the student can repeat immediately.\n"
-                    + "3. ENCOURAGE & PROCEED: When the student repeats correctly, immediately say: \"Excellent! Keep going from '[next word]'...\" and return to silent listening.\n"
-                    + "4. WRAP-UP FEEDBACK: When the student finishes the entire passage, give a concise 2-sentence encouraging summary on their overall intonation and clarity.\n"
-                    + "5. AUDIO LANGUAGE RULE: Speak 100% in natural " + langName + ". Never pronounce Chinese words out loud in audio.";
+                    + "----------------------\n\n"
+                    + "COACHING PROTOCOL:\n"
+                    + "1. SILENT ATTENTIVE LISTENING: While the student is reading, stay quiet and listen attentively to their full rhythm, vowels, consonants, and syllable stress.\n"
+                    + "2. FOCUSED POST-READING VERBAL REVIEW: When the student finishes reading (or pauses after completing the text), immediately provide a friendly, structured 2-sentence spoken review in " + langName + ":\n"
+                    + "   - Praise their fluency and confidence.\n"
+                    + "   - Model the accurate pronunciation for 1-2 words that needed improvement (e.g. \"Great flow! Let's practice 'subtle' (/ˈsʌtl/) and 'comfortable'. Try saying: subtle, comfortable.\")\n"
+                    + "3. AUDIO LANGUAGE RULE: Speak 100% in natural, fluent " + langName + ". Never pronounce Chinese words in audio.";
             rules = "CRITICAL COACHING RULES:\n"
-                    + "1. 100% PURE " + langName + " IN AUDIO: All feedback and corrections must be spoken in clear, friendly " + langName + ".\n"
-                    + "2. Focus on actionable pronunciation, phonetic stress, and rhythm.\n"
+                    + "1. 100% " + langName + " IN AUDIO: Spoken feedback must be in pure " + langName + ".\n"
+                    + "2. Focus on clear phonetic tips, syllable stress, and rhythm.\n"
                     + "3. When the student says goodbye or wants to exit, say a warm farewell in " + langName + " and call 'end_voice_session'.";
         } else if ("immersion".equals(teachingMode)) {
             // 全外語沉浸模式：100% 目標語言，不附帶螢幕翻譯
