@@ -65,6 +65,7 @@ public class NativeGeminiLiveClient {
     private volatile boolean interruptedCurrentTurn;
     private volatile boolean allowVoiceInterruption = true; // 🎙️ 語音插話開關
     private volatile boolean agentMuted = false;
+    private volatile boolean hasReceivedToolSubtitle = false;
 
     private AudioRecord recorder;
     private AcousticEchoCanceler aecEffect;
@@ -323,9 +324,11 @@ public class NativeGeminiLiveClient {
                     final String completeTurnText = currentAiTurnText.toString().trim();
                     currentAiTurnText.setLength(0);
                     String mode = AppConfig.getTeachingMode(context);
-                    if (!"immersion".equals(mode) && !completeTurnText.isEmpty()) {
+                    // Fallback to translateAsync ONLY if tool call wasn't triggered in this turn and not immersion
+                    if (!"immersion".equals(mode) && !hasReceivedToolSubtitle && !completeTurnText.isEmpty()) {
                         translateAsync(completeTurnText);
                     }
+                    hasReceivedToolSubtitle = false;
                 }
             }
 
@@ -337,11 +340,36 @@ public class NativeGeminiLiveClient {
                         JSONObject fc = calls.getJSONObject(i);
                         String name = fc.optString("name", "");
                         String id = fc.optString("id", "call_0");
-                        if ("end_voice_session".equals(name)) {
+                        JSONObject args = fc.optJSONObject("args");
+
+                        if ("display_bilingual_subtitle".equals(name)) {
+                            hasReceivedToolSubtitle = true;
+                            if (args != null) {
+                                String targetText = args.optString("target_text", "").trim();
+                                String nativeTrans = args.optString("native_translation", "").trim();
+                                String keyVocab = args.optString("key_vocab", "").trim();
+
+                                StringBuilder sb = new StringBuilder();
+                                if (!nativeTrans.isEmpty()) {
+                                    sb.append(nativeTrans);
+                                }
+                                if (!keyVocab.isEmpty()) {
+                                    if (sb.length() > 0) sb.append(" · ");
+                                    sb.append("💡 ").append(keyVocab);
+                                }
+
+                                if (sb.length() > 0) {
+                                    listener.onTranscript(sb.toString(), "translation");
+                                }
+                            }
+                            sendToolResponse(id, name, new JSONObject().put("success", true));
+                        } else if ("end_voice_session".equals(name)) {
                             sendToolResponse(id, name, new JSONObject().put("success", true).put("message", "對話已結束"));
                             interruptionHandler.postDelayed(new Runnable() {
                                 @Override public void run() { stop(); }
                             }, 500);
+                        } else {
+                            sendToolResponse(id, name, new JSONObject().put("success", true));
                         }
                     }
                 }
@@ -395,17 +423,31 @@ public class NativeGeminiLiveClient {
         setup.put("inputAudioTranscription", new JSONObject());
         setup.put("outputAudioTranscription", new JSONObject());
 
-        // Simple tool: end call
-        JSONArray tools = new JSONArray();
-        tools.put(new JSONObject().put("name", "end_voice_session")
-                .put("description", "End the tutoring voice call when the user says goodbye, hang up, or exit (e.g. 結束, 掛斷, 再見, 先這樣, bye)."));
-        setup.put("tools", new JSONArray().put(new JSONObject().put("functionDeclarations", tools)));
-
         // Dedicated Tutor Instruction
         String langName = getLanguageDisplayName(tutorLang);
         String teachingMode = AppConfig.getTeachingMode(context);
         boolean isUiEn = I18n.isEnglish(context);
         String nativeLang = (isUiEn || "zh".equalsIgnoreCase(tutorLang)) ? "English" : "Traditional Chinese (繁體中文/國語)";
+
+        // Tool declarations
+        JSONArray tools = new JSONArray();
+        tools.put(new JSONObject().put("name", "end_voice_session")
+                .put("description", "End the tutoring voice call when the user says goodbye, hang up, or exit (e.g. 結束, 掛斷, 再見, 先這樣, bye)."));
+
+        JSONObject displaySubtitleProps = new JSONObject();
+        displaySubtitleProps.put("target_text", new JSONObject().put("type", "STRING").put("description", "The foreign sentence/phrase spoken by the tutor in " + langName));
+        displaySubtitleProps.put("native_translation", new JSONObject().put("type", "STRING").put("description", "Accurate, natural translation in student's native language (" + nativeLang + ")"));
+        displaySubtitleProps.put("key_vocab", new JSONObject().put("type", "STRING").put("description", "Optional key vocabulary, idioms, or grammar notes with explanation"));
+        JSONObject displaySubtitleParams = new JSONObject();
+        displaySubtitleParams.put("type", "OBJECT");
+        displaySubtitleParams.put("properties", displaySubtitleProps);
+        displaySubtitleParams.put("required", new JSONArray().put("target_text").put("native_translation"));
+
+        tools.put(new JSONObject().put("name", "display_bilingual_subtitle")
+                .put("description", "Display real-time visual bilingual subtitle card on the student's screen containing the target text and its native translation.")
+                .put("parameters", displaySubtitleParams));
+
+        setup.put("tools", new JSONArray().put(new JSONObject().put("functionDeclarations", tools)));
 
         String personaDetail = "daily".equals(tutorPersona) ? "Daily life, hobbies, current events, and casual chats." :
                 ("travel".equals(tutorPersona) ? "Travel scenarios (airport, hotel, ordering food, asking directions)." :
@@ -416,7 +458,6 @@ public class NativeGeminiLiveClient {
         String rules;
 
         if ("shadowing".equals(teachingMode)) {
-            // 朗讀與發音診斷教練模式：斯巴達嚴格糾錯特訓，顯微鏡級抓重音/咬字/吞音，示範標準發音並要求回讀重練
             String readingContent = AppConfig.getReadingText(context);
             modeInstruction = "【Teaching Mode: STRICT SPARTAN PRONUNCIATION COACH (斯巴達嚴格朗讀糾音特訓)】\n"
                     + "Mission: You are an exacting, sharp-eared native pronunciation coach with zero tolerance for sloppy articulation or false flattery. The student will read the following passage aloud:\n\n"
@@ -436,7 +477,6 @@ public class NativeGeminiLiveClient {
                     + "2. Strict and professional: prioritize precision, syllable stress, and rhythm over politeness.\n"
                     + "3. When the student says goodbye or wants to exit, say a concise farewell in " + langName + " and call 'end_voice_session'.";
         } else if ("immersion".equals(teachingMode)) {
-            // 全外語沉浸模式：100% 目標語言，不附帶螢幕翻譯
             modeInstruction = "【Teaching Mode: 100% FULL IMMERSION (全外語沉浸模式)】\n"
                     + "ABSOLUTE RULE: Speak ONLY in 100% natural, fluent, native " + langName + " throughout the ENTIRE session.\n"
                     + "NEVER speak " + nativeLang + ", NEVER provide translations in speech, and create an authentic immersion environment in " + langName + ".";
@@ -447,29 +487,31 @@ public class NativeGeminiLiveClient {
                     + "4. GENTLE RECAST: If the student makes mistakes in " + langName + ", model the correct phrasing naturally in pure " + langName + ".\n"
                     + "5. When the student says goodbye or wants to exit, say a warm farewell in " + langName + " and call 'end_voice_session'.";
         } else if ("beginner".equals(teachingMode)) {
-            // 零基礎引導模式：純外語短句示範，螢幕自動即時翻譯
+            // 零基礎引導模式：純外語短句示範，同時呼叫 tool 傳送螢幕中文翻譯
             modeInstruction = "【Teaching Mode: BEGINNER STEP-BY-STEP (零基礎引導模式)】\n"
-                    + "ABSOLUTE AUDIO RULE: Speak ONE short, practical, easy-to-repeat sentence in 100% pure " + langName + ".\n"
-                    + "NEVER pronounce Chinese words in the audio stream. Pure audio only.";
+                    + "1. AUDIO RULE: Speak ONE short, practical sentence in 100% pure " + langName + ". Never pronounce Chinese words out loud in audio.\n"
+                    + "2. TOOL CALL: In every turn, you MUST call 'display_bilingual_subtitle' with the phrase and its " + nativeLang + " translation.\n"
+                    + "3. Warmly encourage the student to repeat after you.";
             rules = "CRITICAL CONVERSATIONAL RULES (BEGINNER):\n"
                     + "1. Speak short, crystal-clear practical phrases in pure " + langName + " for the learner to mimic.\n"
-                    + "2. DO NOT pronounce or speak any Chinese words out loud in audio.\n"
-                    + "3. Encourage the student warmly whenever they try speaking.\n"
+                    + "2. DO NOT pronounce or speak any " + nativeLang + " words out loud in audio.\n"
+                    + "3. Call 'display_bilingual_subtitle' in every turn to display " + nativeLang + " subtitle on screen.\n"
                     + "4. When the student says goodbye or wants to exit, say a warm farewell and call 'end_voice_session'.";
         } else {
-            // 雙語對照模式（預設推薦）：外語說完後，立即在語音中附帶親切的母語 (中文/英文) 解說翻譯，並在螢幕上呈現雙語對照
-            modeInstruction = "【Teaching Mode: BILINGUAL SCAFFOLDING & EXPLANATION (雙語口說對照教學模式)】\n"
-                    + "SPOKEN AUDIO INSTRUCTION (Mandatory):\n"
-                    + "1. Speak your primary conversational sentence or question in authentic native " + langName + " first.\n"
-                    + "2. IMMEDIATELY follow up in the SAME spoken turn with a clear, friendly spoken translation and explanation in " + nativeLang + " so the student fully understands what was said.\n"
-                    + "Example spoken response pattern:\n"
-                    + "\"" + (langName.contains("Japanese") ? "今日はどんな一日でしたか？ (今天過得怎麼樣呢？)" : "What are your plans for the upcoming weekend? (你這個週末有什麼特別的計畫嗎？)") + "\"";
+            // 雙語對照模式（預設推薦）：耳朵聽 100% 純外語發音，同時呼叫 Tool 在螢幕即時顯示母語 (中文/英文) 翻譯與學習筆記
+            modeInstruction = "【Teaching Mode: BILINGUAL SCAFFOLDING & REAL-TIME VISUAL SUBTITLE (雙語字幕對照教學模式)】\n"
+                    + "1. AUDIO RULE (Pure Target Language): Speak 100% in natural, fluent, native " + langName + " (絕對嚴禁在語音中說出 " + nativeLang + "！耳聽純外語沉浸).\n"
+                    + "2. TOOL CALL (Mandatory Visual Translation): In EVERY single turn, you MUST call 'display_bilingual_subtitle' with:\n"
+                    + "   - target_text: your spoken sentence in " + langName + "\n"
+                    + "   - native_translation: the natural, accurate translation in " + nativeLang + "\n"
+                    + "   - key_vocab: (optional) any useful vocabulary or idioms from your response\n"
+                    + "3. Always end your spoken sentence with an open-ended question in " + langName + " so the student has an easy cue to reply in " + langName + ".";
             rules = "CRITICAL BILINGUAL RULES:\n"
-                    + "1. DUAL-LANGUAGE SPOKEN AUDIO: Every turn MUST contain both the clear target language sentence (" + langName + ") AND its natural native explanation (" + nativeLang + ").\n"
-                    + "2. Keep both parts natural, concise, and easy to follow.\n"
-                    + "3. Ask an engaging question at the end of your turn (providing both " + langName + " and " + nativeLang + ") to guide the student's reply.\n"
-                    + "4. ACTIVE RECAST: If the student speaks with errors or struggles, gently explain the correct phrasing in " + nativeLang + " and demonstrate the proper expression in " + langName + ".\n"
-                    + "5. When the student says goodbye or wants to exit, say a warm farewell in both languages and call 'end_voice_session'.";
+                    + "1. 100% PURE " + langName + " IN AUDIO: Never speak " + nativeLang + " in the audio stream.\n"
+                    + "2. EVERY TURN CALL 'display_bilingual_subtitle' to supply visual subtitle & notes in " + nativeLang + " for the student.\n"
+                    + "3. Keep spoken responses natural and concise (1-2 sentences in " + langName + ").\n"
+                    + "4. ACTIVE RECAST: If the student makes mistakes in " + langName + ", model the corrected sentence in " + langName + " and explain the correction in 'native_translation' via the tool call.\n"
+                    + "5. When the student says goodbye or wants to exit, say farewell in " + langName + " and call 'end_voice_session'.";
         }
 
         String baseInstruction = "You are 'Crew Teacher', an insightful, precise, and rigorous 1-on-1 language coach. "
