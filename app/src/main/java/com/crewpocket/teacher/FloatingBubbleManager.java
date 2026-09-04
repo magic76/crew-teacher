@@ -560,20 +560,45 @@ public class FloatingBubbleManager {
     public void applyStructuredSubtitleData(final String targetText, final String nativeTrans, final String keyVocab, final java.util.List<String> hints) {
         mainHandler.post(new Runnable() {
             @Override public void run() {
-                if (currentBubbleChatTurn == null || !"ai".equals(currentBubbleChatTurn.role)) {
-                    if (currentBubbleChatTurn != null && currentBubbleChatTurn.spoken.length() > 0) {
-                        bubbleTurnHistory.add(currentBubbleChatTurn);
+                String cleanTrans = nativeTrans != null ? nativeTrans.trim() : "";
+                String cleanVocab = keyVocab != null ? keyVocab.trim() : "";
+
+                if (currentBubbleChatTurn != null && "ai".equals(currentBubbleChatTurn.role)) {
+                    currentBubbleChatTurn.translation = cleanTrans;
+                    currentBubbleChatTurn.keyVocab = cleanVocab;
+                    currentBubbleChatTurn.hints.clear();
+                    if (hints != null) currentBubbleChatTurn.hints.addAll(hints);
+                    if (!NativeLiveService.isAiSpeaking()) {
+                        currentBubbleChatTurn.translationRevealed = true;
                     }
-                    currentBubbleChatTurn = new BubbleChatTurn();
-                    currentBubbleChatTurn.role = "ai";
+                    renderBubbleChatCards();
+                    return;
                 }
-                currentBubbleChatTurn.translation = nativeTrans != null ? nativeTrans.trim() : "";
-                currentBubbleChatTurn.keyVocab = keyVocab != null ? keyVocab.trim() : "";
+
+                for (int i = bubbleTurnHistory.size() - 1; i >= 0; i--) {
+                    BubbleChatTurn t = bubbleTurnHistory.get(i);
+                    if ("ai".equals(t.role)) {
+                        t.translation = cleanTrans;
+                        t.keyVocab = cleanVocab;
+                        t.hints.clear();
+                        if (hints != null) t.hints.addAll(hints);
+                        t.translationRevealed = true;
+                        renderBubbleChatCards();
+                        return;
+                    }
+                }
+
+                if (currentBubbleChatTurn != null && currentBubbleChatTurn.spoken.length() > 0) {
+                    bubbleTurnHistory.add(currentBubbleChatTurn);
+                }
+                currentBubbleChatTurn = new BubbleChatTurn();
+                currentBubbleChatTurn.role = "ai";
+                if (targetText != null && !targetText.isEmpty()) currentBubbleChatTurn.spoken.append(targetText);
+                currentBubbleChatTurn.translation = cleanTrans;
+                currentBubbleChatTurn.keyVocab = cleanVocab;
                 currentBubbleChatTurn.hints.clear();
                 if (hints != null) currentBubbleChatTurn.hints.addAll(hints);
-                if (!NativeLiveService.isAiSpeaking()) {
-                    currentBubbleChatTurn.translationRevealed = true;
-                }
+                currentBubbleChatTurn.translationRevealed = true;
                 renderBubbleChatCards();
             }
         });

@@ -540,7 +540,7 @@ public class NativeGeminiLiveClient {
 
             JSONObject genConfig = new JSONObject();
             genConfig.put("temperature", 0.2);
-            genConfig.put("maxOutputTokens", 350);
+            genConfig.put("maxOutputTokens", 1024);
             root.put("generationConfig", genConfig);
 
             String url = "https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent?key=" + apiKey;
@@ -583,8 +583,15 @@ public class NativeGeminiLiveClient {
                                                 return;
                                             }
                                         } catch (Exception parseJsonErr) {
-                                            // Fallback if raw text returned
-                                            if (!raw.isEmpty()) {
+                                            // Fallback: extract fields by regex
+                                            String mainTrans = extractFieldByRegex(raw, "translation");
+                                            String keyVocab = extractFieldByRegex(raw, "key_vocab");
+                                            if (!mainTrans.isEmpty()) {
+                                                listener.onSubtitleData(sourceText, mainTrans, keyVocab, new java.util.ArrayList<String>());
+                                                return;
+                                            }
+                                            // Fallback if plain text returned without JSON formatting
+                                            if (!raw.isEmpty() && !raw.startsWith("{")) {
                                                 listener.onSubtitleData(sourceText, raw, "", new java.util.ArrayList<String>());
                                                 return;
                                             }
@@ -604,6 +611,18 @@ public class NativeGeminiLiveClient {
             Log.e(TAG, "tryTranslateAt error: " + e.getMessage());
             tryTranslateAt(modelIdx + 1, sourceText, prompt);
         }
+    }
+
+    private static String extractFieldByRegex(String text, String field) {
+        if (text == null || field == null) return "";
+        try {
+            java.util.regex.Pattern p = java.util.regex.Pattern.compile("\"" + field + "\"\\s*:\\s*\"([^\"]+)\"", java.util.regex.Pattern.DOTALL);
+            java.util.regex.Matcher m = p.matcher(text);
+            if (m.find()) {
+                return m.group(1).replace("\\n", "\n").replace("\\\"", "\"").trim();
+            }
+        } catch (Exception ignored) {}
+        return "";
     }
 
     private static String getLanguageDisplayName(String code) {

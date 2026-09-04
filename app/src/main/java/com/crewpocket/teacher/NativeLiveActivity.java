@@ -995,20 +995,45 @@ public class NativeLiveActivity extends Activity {
     }
 
     private void applyStructuredSubtitleData(String targetText, String nativeTrans, String keyVocab, java.util.List<String> hints) {
-        if (currentChatTurn == null || !"ai".equals(currentChatTurn.role)) {
-            if (currentChatTurn != null && currentChatTurn.spoken.length() > 0) {
-                turnHistory.add(currentChatTurn);
+        String cleanTrans = nativeTrans != null ? nativeTrans.trim() : "";
+        String cleanVocab = keyVocab != null ? keyVocab.trim() : "";
+
+        if (currentChatTurn != null && "ai".equals(currentChatTurn.role)) {
+            currentChatTurn.translation = cleanTrans;
+            currentChatTurn.keyVocab = cleanVocab;
+            currentChatTurn.hints.clear();
+            if (hints != null) currentChatTurn.hints.addAll(hints);
+            if (client != null && !client.isAiSpeaking()) {
+                currentChatTurn.translationRevealed = true;
             }
-            currentChatTurn = new ChatTurn();
-            currentChatTurn.role = "ai";
+            renderChatCards();
+            return;
         }
-        currentChatTurn.translation = nativeTrans != null ? nativeTrans.trim() : "";
-        currentChatTurn.keyVocab = keyVocab != null ? keyVocab.trim() : "";
+
+        for (int i = turnHistory.size() - 1; i >= 0; i--) {
+            ChatTurn t = turnHistory.get(i);
+            if ("ai".equals(t.role)) {
+                t.translation = cleanTrans;
+                t.keyVocab = cleanVocab;
+                t.hints.clear();
+                if (hints != null) t.hints.addAll(hints);
+                t.translationRevealed = true;
+                renderChatCards();
+                return;
+            }
+        }
+
+        if (currentChatTurn != null && currentChatTurn.spoken.length() > 0) {
+            turnHistory.add(currentChatTurn);
+        }
+        currentChatTurn = new ChatTurn();
+        currentChatTurn.role = "ai";
+        if (targetText != null && !targetText.isEmpty()) currentChatTurn.spoken.append(targetText);
+        currentChatTurn.translation = cleanTrans;
+        currentChatTurn.keyVocab = cleanVocab;
         currentChatTurn.hints.clear();
         if (hints != null) currentChatTurn.hints.addAll(hints);
-        if (client != null && !client.isAiSpeaking()) {
-            currentChatTurn.translationRevealed = true;
-        }
+        currentChatTurn.translationRevealed = true;
         renderChatCards();
     }
 
