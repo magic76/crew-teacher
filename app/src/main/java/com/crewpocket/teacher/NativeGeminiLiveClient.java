@@ -426,8 +426,7 @@ public class NativeGeminiLiveClient {
         // Dedicated Tutor Instruction
         String langName = getLanguageDisplayName(tutorLang);
         String teachingMode = AppConfig.getTeachingMode(context);
-        boolean isUiEn = I18n.isEnglish(context);
-        String nativeLang = (isUiEn || "zh".equalsIgnoreCase(tutorLang)) ? "English" : "Traditional Chinese (繁體中文/國語)";
+        String nativeLang = AppConfig.getStudentLanguageDisplayName(context);
 
         // Tool declarations
         JSONArray tools = new JSONArray();
@@ -538,11 +537,7 @@ public class NativeGeminiLiveClient {
 
     private void translateAsync(final String sourceText) {
         if (apiKey == null || apiKey.isEmpty() || sourceText.isEmpty()) return;
-        boolean isUiEn = I18n.isEnglish(context);
-        String targetLang = isUiEn ? "English" : "Traditional Chinese (繁體中文)";
-        if ("zh".equalsIgnoreCase(tutorLang) && !isUiEn) {
-            targetLang = "English";
-        }
+        String targetLang = AppConfig.getStudentLanguageDisplayName(context);
         final String prompt = "Translate the following spoken sentence into natural, fluent " + targetLang + ".\n"
                 + "Output ONLY the direct translation text with no markdown formatting, no explanations, and no quotes:\n\n" + sourceText;
         tryTranslateAt(0, prompt);

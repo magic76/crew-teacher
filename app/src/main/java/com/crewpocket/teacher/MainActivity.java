@@ -336,10 +336,16 @@ public class MainActivity extends Activity {
         advHeading.setPadding(0, dp(6), 0, dp(8));
         pageContent.addView(advHeading);
 
+        // Student Native Language
+        String studentLangLabel = AppConfig.getStudentLanguageDisplayName(this);
+        pageContent.addView(makeActionCard("🗣️", en ? "Student Native Language" : "學生母語（對照翻譯語言）", studentLangLabel + (en ? " · Subtitles & notes language" : " · 即時字幕對照與單字註釋語言"), CrewTheme.EMERALD_400, new View.OnClickListener() {
+            @Override public void onClick(View v) { showStudentLanguageDialog(); }
+        }));
+
         // Voice Persona (30 Voices)
         String currentVoice = AppConfig.getVoiceName(this);
         String voiceSummary = getVoiceDisplayName(currentVoice, en);
-        pageContent.addView(makeActionCard("🗣️", en ? "Tutor Voice Persona (30 Voices)" : "導師語音音色 (全 30 款)", voiceSummary + (en ? " · Tap to choose & listen" : " · 點擊選用與試聽"), CrewTheme.CYAN_400, new View.OnClickListener() {
+        pageContent.addView(makeActionCard("🎙️", en ? "Tutor Voice Persona (30 Voices)" : "導師語音音色 (全 30 款)", voiceSummary + (en ? " · Tap to choose & listen" : " · 點擊選用與試聽"), CrewTheme.CYAN_400, new View.OnClickListener() {
             @Override public void onClick(View v) { showVoicePersonaDialog(); }
         }));
 
@@ -663,6 +669,48 @@ public class MainActivity extends Activity {
                 }
                 renderHomePage();
                 Toast.makeText(MainActivity.this, (en ? "Practice language set to: " : "已設定練習語言：") + items[which], Toast.LENGTH_SHORT).show();
+            }
+        });
+        builder.show();
+    }
+
+    private void showStudentLanguageDialog() {
+        final boolean en = I18n.isEnglish(this);
+        final String[] items = {
+                "🇹🇼 繁體中文 (Traditional Chinese)",
+                "🇨🇳 簡體中文 (Simplified Chinese)",
+                "🇺🇸 英語 (English)",
+                "🇯🇵 日語 (日本語)",
+                "🇰🇷 韓語 (한국어)",
+                "🇻🇳 越南語 (Tiếng Việt)",
+                "🇮🇩 印尼語 (Bahasa Indonesia)",
+                "🇪🇸 西班牙語 (Español)",
+                "🇫🇷 法語 (Français)",
+                "🇩🇪 德語 (Deutsch)",
+                "🇹🇭 泰語 (ภาษาไทย)",
+                "🇵🇹 葡萄牙語 (Português)",
+                "🇷🇺 俄語 (Русский)",
+                "🇭🇰 粵語 / 廣東話 (Cantonese)",
+                "🇹🇼 閩南語 / 台語 (Taiwanese Hokkien)"
+        };
+        final String[] values = {"zh-TW", "zh-CN", "en", "ja", "ko", "vi", "id", "es", "fr", "de", "th", "pt", "ru", "yue", "nan"};
+        String current = AppConfig.getStudentLanguage(this);
+        int selected = 0;
+        for (int i = 0; i < values.length; i++) {
+            if (values[i].equalsIgnoreCase(current)) {
+                selected = i;
+                break;
+            }
+        }
+
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle(en ? "🗣️ Choose Student Native Language" : "🗣️ 選擇學生母語（對照翻譯語言）");
+        builder.setSingleChoiceItems(items, selected, new DialogInterface.OnClickListener() {
+            @Override public void onClick(DialogInterface dialog, int which) {
+                AppConfig.setStudentLanguage(MainActivity.this, values[which]);
+                dialog.dismiss();
+                renderHomePage();
+                Toast.makeText(MainActivity.this, (en ? "Student native language set to: " : "學生母語已設定為：") + items[which], Toast.LENGTH_SHORT).show();
             }
         });
         builder.show();

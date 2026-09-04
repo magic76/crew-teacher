@@ -17,10 +17,12 @@ public class AppConfig {
     public static final String KEY_CUSTOM_PROMPT = "custom_system_prompt";
     public static final String KEY_UI_LANGUAGE = "ui_language";
     public static final String KEY_TEACHING_MODE = "teaching_mode";
+    public static final String KEY_STUDENT_LANGUAGE = "student_language";
     public static final String KEY_READING_TEXT = "reading_text";
 
     public static final String DEFAULT_VOICE = "Kore";
     public static final String DEFAULT_TUTOR_LANG = "en"; // en, ja, ko, es, zh
+    public static final String DEFAULT_STUDENT_LANG = "zh-TW"; // zh-TW, zh-CN, en, ja, ko, vi, id, es, fr, de, th
     public static final String DEFAULT_PERSONA = "daily"; // daily, travel, business, exam, friendly
     public static final String DEFAULT_UI_LANG = "zh"; // zh, en
     public static final String DEFAULT_TEACHING_MODE = "bilingual"; // beginner (零基礎引導), bilingual (雙語對照), immersion (全外語沉浸), shadowing (朗讀糾音教練)
@@ -105,6 +107,46 @@ public class AppConfig {
     public static void setTutorPersona(Context context, String persona) {
         if (context == null) return;
         getPrefs(context).edit().putString(KEY_TUTOR_PERSONA, persona == null ? DEFAULT_PERSONA : persona.trim()).apply();
+    }
+
+    // ── 3.2 Student Native Language (for bilingual translation & notes) ──
+    public static String getStudentLanguage(Context context) {
+        if (context == null) return DEFAULT_STUDENT_LANG;
+        String lang = getPrefs(context).getString(KEY_STUDENT_LANGUAGE, DEFAULT_STUDENT_LANG);
+        return (lang == null || lang.trim().isEmpty()) ? DEFAULT_STUDENT_LANG : lang.trim();
+    }
+
+    public static void setStudentLanguage(Context context, String lang) {
+        if (context == null) return;
+        getPrefs(context).edit().putString(KEY_STUDENT_LANGUAGE, lang == null ? DEFAULT_STUDENT_LANG : lang.trim()).apply();
+    }
+
+    public static String getStudentLanguageDisplayName(Context context) {
+        String code = getStudentLanguage(context);
+        return getStudentLanguageLabel(code);
+    }
+
+    public static String getStudentLanguageLabel(String code) {
+        if ("zh-TW".equalsIgnoreCase(code) || "zh-HK".equalsIgnoreCase(code) || "zh_Hant".equalsIgnoreCase(code)) return "Traditional Chinese (繁體中文)";
+        if ("zh-CN".equalsIgnoreCase(code) || "zh".equalsIgnoreCase(code) || "zh_Hans".equalsIgnoreCase(code)) return "Simplified Chinese (簡體中文)";
+        if ("en".equalsIgnoreCase(code)) return "English";
+        if ("ja".equalsIgnoreCase(code)) return "Japanese (日本語)";
+        if ("ko".equalsIgnoreCase(code)) return "Korean (한국어)";
+        if ("vi".equalsIgnoreCase(code)) return "Vietnamese (Tiếng Việt)";
+        if ("id".equalsIgnoreCase(code)) return "Indonesian (Bahasa Indonesia)";
+        if ("es".equalsIgnoreCase(code)) return "Spanish (Español)";
+        if ("fr".equalsIgnoreCase(code)) return "French (Français)";
+        if ("de".equalsIgnoreCase(code)) return "German (Deutsch)";
+        if ("th".equalsIgnoreCase(code)) return "Thai (ภาษาไทย)";
+        if ("pt".equalsIgnoreCase(code)) return "Portuguese (Português)";
+        if ("ru".equalsIgnoreCase(code)) return "Russian (Русский)";
+        if ("it".equalsIgnoreCase(code)) return "Italian (Italiano)";
+        if ("ar".equalsIgnoreCase(code)) return "Arabic (العربية)";
+        if ("hi".equalsIgnoreCase(code)) return "Hindi (हिन्दी)";
+        if ("ms".equalsIgnoreCase(code)) return "Malay (Bahasa Melayu)";
+        if ("nan".equalsIgnoreCase(code) || "hokkien".equalsIgnoreCase(code)) return "Taiwanese Hokkien (台灣話/台語)";
+        if ("yue".equalsIgnoreCase(code) || "cantonese".equalsIgnoreCase(code)) return "Cantonese (粵語/廣東話)";
+        return "Traditional Chinese (繁體中文)";
     }
 
     public static String getTeachingMode(Context context) {
