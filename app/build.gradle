@@ -3,11 +3,11 @@ plugins {
 }
 
 android {
-    namespace 'com.crewpocket.helper'
+    namespace 'com.crewpocket.teacher'
     compileSdk 34
 
     defaultConfig {
-        applicationId "com.crewpocket.helper"
+        applicationId "com.crewpocket.teacher"
         minSdk 24
         targetSdk 34
         versionCode 44

@@ -17,6 +17,10 @@ fi
 echo "📦 Target Build Version: v${VERSION_NAME}"
 
 # Update AndroidManifest.xml version strings
+VERSION_CODE="$(grep -E "versionCode" app/build.gradle | head -n1 | awk '{print $2}' | tr -d ';\r\n')"
+if [ -n "$VERSION_CODE" ]; then
+    sed -i -E "s/android:versionCode=\"[^\"]*\"/android:versionCode=\"${VERSION_CODE}\"/g" app/src/main/AndroidManifest.xml
+fi
 sed -i -E "s/android:versionName=\"[^\"]*\"/android:versionName=\"${VERSION_NAME}\"/g" app/src/main/AndroidManifest.xml
 
 if [ ! -f "$KEYSTORE" ]; then
