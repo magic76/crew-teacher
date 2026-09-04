@@ -49,6 +49,7 @@ public class FloatingBubbleManager {
 
     private TextView statusText;
     private TextView transcriptText;
+    private ScrollView transcriptScroll;
     private Button callBtn;
     private Button muteBtn;
     private Button audioOutputBtn;
@@ -357,8 +358,8 @@ public class FloatingBubbleManager {
         root.addView(statusBox);
 
         // Transcript Scroll View
-        ScrollView transcriptScroll = new ScrollView(context);
-        transcriptScroll.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(130)));
+        transcriptScroll = new ScrollView(context);
+        transcriptScroll.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(140)));
         transcriptScroll.setPadding(dp(8), dp(6), dp(8), dp(6));
 
         transcriptText = new TextView(context);
@@ -368,6 +369,12 @@ public class FloatingBubbleManager {
         transcriptText.setLineSpacing(dp(2), 1.15f);
         transcriptScroll.addView(transcriptText);
         root.addView(transcriptScroll);
+
+        transcriptScroll.post(new Runnable() {
+            @Override public void run() {
+                if (transcriptScroll != null) transcriptScroll.fullScroll(View.FOCUS_DOWN);
+            }
+        });
 
         // Action Buttons Row 1: Call & Mute & Audio Output
         LinearLayout actions = new LinearLayout(context);
@@ -481,6 +488,10 @@ public class FloatingBubbleManager {
             if (dialogView.getParent() != null) windowManager.removeView(dialogView);
         } catch (Exception ignored) {}
         dialogView = null;
+        transcriptScroll = null;
+        transcriptText = null;
+        statusText = null;
+        meterText = null;
         isDialogShowing = false;
         scheduleAutoDock();
     }
@@ -496,7 +507,7 @@ public class FloatingBubbleManager {
     }
 
     private String currentTurnRole = "";
-    private final StringBuilder currentTurnBuffer = new StringBuilder();
+    private final StringBuilder fullTranscriptLog = new StringBuilder();
 
     public void appendTranscript(final String text, final String role) {
         mainHandler.post(new Runnable() {
@@ -508,13 +519,24 @@ public class FloatingBubbleManager {
 
                 if (!roleKey.equals(currentTurnRole)) {
                     currentTurnRole = roleKey;
-                    currentTurnBuffer.setLength(0);
-                    currentTurnBuffer.append(prefix);
+                    if (fullTranscriptLog.length() > 0) {
+                        fullTranscriptLog.append("\n\n");
+                    }
+                    fullTranscriptLog.append(prefix);
                 }
-                currentTurnBuffer.append(text);
-                latestTranscript = currentTurnBuffer.toString();
+                fullTranscriptLog.append(text);
+                latestTranscript = fullTranscriptLog.toString();
                 if (transcriptText != null) {
                     transcriptText.setText(latestTranscript);
+                }
+                if (transcriptScroll != null) {
+                    transcriptScroll.post(new Runnable() {
+                        @Override public void run() {
+                            if (transcriptScroll != null) {
+                                transcriptScroll.fullScroll(View.FOCUS_DOWN);
+                            }
+                        }
+                    });
                 }
             }
         });

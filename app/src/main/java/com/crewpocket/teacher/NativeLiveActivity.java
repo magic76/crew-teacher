@@ -22,6 +22,7 @@ public class NativeLiveActivity extends Activity {
     private TextView statusDot;
     private TextView statusText;
     private TextView transcript;
+    private ScrollView transcriptScrollView;
     private TextView meterText;
     private Button callButton;
     private Button muteButton;
@@ -42,15 +43,11 @@ public class NativeLiveActivity extends Activity {
         }
         getWindow().getDecorView().setBackgroundColor(CrewTheme.BG_PRIMARY);
 
-        ScrollView scroll = new ScrollView(this);
-        scroll.setFillViewport(true);
-        scroll.setBackgroundColor(CrewTheme.BG_PRIMARY);
-
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setPadding(dp(20), dp(24), dp(20), dp(24));
         root.setBackgroundColor(CrewTheme.BG_PRIMARY);
-        scroll.addView(root);
+        root.setLayoutParams(new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
 
         boolean en = I18n.isEnglish(this);
 
@@ -129,9 +126,9 @@ public class NativeLiveActivity extends Activity {
         tTitle.setTypeface(Typeface.DEFAULT_BOLD);
         transcriptCard.addView(tTitle);
 
-        ScrollView tScroll = new ScrollView(this);
-        tScroll.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
-        tScroll.setPadding(0, dp(8), 0, 0);
+        transcriptScrollView = new ScrollView(this);
+        transcriptScrollView.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        transcriptScrollView.setPadding(0, dp(8), 0, 0);
 
         transcript = new TextView(this);
         transcript.setText(en
@@ -140,8 +137,8 @@ public class NativeLiveActivity extends Activity {
         transcript.setTextColor(CrewTheme.TEXT_PRIMARY);
         transcript.setTextSize(14);
         transcript.setLineSpacing(dp(3), 1.2f);
-        tScroll.addView(transcript);
-        transcriptCard.addView(tScroll);
+        transcriptScrollView.addView(transcript);
+        transcriptCard.addView(transcriptScrollView);
 
         root.addView(transcriptCard);
 
@@ -188,7 +185,7 @@ public class NativeLiveActivity extends Activity {
         controls.addView(muteButton);
 
         root.addView(controls);
-        setContentView(scroll);
+        setContentView(root);
     }
 
     private void toggleCall() {
@@ -304,7 +301,9 @@ public class NativeLiveActivity extends Activity {
     private void appendLiveTranscript(String text, String role) {
         if (text == null || text.isEmpty()) return;
         String existing = transcript.getText().toString();
-        if (existing.startsWith("點擊下方「開始口語對話」")) existing = "";
+        if (existing.startsWith("點擊下方「開始口語對話」") || existing.startsWith("Tap 'Start Oral Practice'")) {
+            existing = "";
+        }
 
         boolean isAi = "ai".equalsIgnoreCase(role) || "Gemini".equalsIgnoreCase(role);
         String roleKey = isAi ? "ai" : "user";
@@ -313,6 +312,16 @@ public class NativeLiveActivity extends Activity {
         String prefix = sameSpeaker ? "" : (existing.isEmpty() ? "" : "\n\n") + (isAi ? "🤖 導師: " : "🗣️ 你: ");
         lastTranscriptRole = roleKey;
         transcript.setText(existing + prefix + text);
+
+        if (transcriptScrollView != null) {
+            transcriptScrollView.post(new Runnable() {
+                @Override public void run() {
+                    if (transcriptScrollView != null) {
+                        transcriptScrollView.fullScroll(View.FOCUS_DOWN);
+                    }
+                }
+            });
+        }
     }
 
     private void showApiKeyDialog() {
