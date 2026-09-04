@@ -154,6 +154,7 @@ public class NativeLiveService extends Service {
                     public void onSpeakingChanged(final boolean speaking) {
                         handler.post(new Runnable() {
                             @Override public void run() {
+                                FloatingBubbleManager.getInstance(NativeLiveService.this).onSpeakingChanged(speaking);
                                 updateStatus(speaking ? "🔊 導師說話中" : "🎙️ 導師聆聽中", true);
                             }
                         });

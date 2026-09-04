@@ -925,11 +925,14 @@ public class NativeLiveActivity extends Activity {
                         handler.post(new Runnable() {
                             @Override public void run() {
                                 if (speaking) {
+                                    isCurrentTurnTranslationRevealed = false;
                                     updateStatus(CrewTheme.CYAN_400, isShadowingMode ? "🔊 AI 導師講評示範中…" : "🔊 導師回答中…");
                                     if (isShadowingMode) {
                                         showPronunciationDiagnosticReport();
                                     }
                                 } else {
+                                    isCurrentTurnTranslationRevealed = true;
+                                    renderTranscriptView();
                                     updateStatus(CrewTheme.EMERALD_400, isShadowingMode ? "🎙️ 請大聲朗讀，即時分析中…" : "🎙️ 導師聆聽中，請說話");
                                 }
                             }
@@ -959,6 +962,7 @@ public class NativeLiveActivity extends Activity {
     private String currentTurnRole = "";
     private final StringBuilder currentTurnText = new StringBuilder();
     private String currentTurnTranslation = "";
+    private boolean isCurrentTurnTranslationRevealed = false;
 
     private void appendLiveTranscript(String text, String role) {
         if (transcript == null || text == null || text.isEmpty()) return;
@@ -976,6 +980,7 @@ public class NativeLiveActivity extends Activity {
             currentTurnRole = roleKey;
             currentTurnText.setLength(0);
             currentTurnTranslation = "";
+            isCurrentTurnTranslationRevealed = !isAi;
         }
 
         currentTurnText.append(text);
@@ -987,14 +992,18 @@ public class NativeLiveActivity extends Activity {
         String clean = text.trim();
         if ("ai".equals(currentTurnRole)) {
             currentTurnTranslation = clean;
+            if (client != null && !client.isAiSpeaking()) {
+                isCurrentTurnTranslationRevealed = true;
+            }
             renderTranscriptView();
         } else {
             // If previous turn in history was AI without translation, append underneath it
             int lastAiIdx = committedTranscript.lastIndexOf("🤖 導師: ");
             if (lastAiIdx != -1) {
-                int lastTransIdx = committedTranscript.lastIndexOf("📖 翻譯：");
+                int lastTransIdx = committedTranscript.lastIndexOf("📖 翻譯與小抄：");
+                if (lastTransIdx == -1) lastTransIdx = committedTranscript.lastIndexOf("📖 翻譯：");
                 if (lastTransIdx < lastAiIdx) {
-                    committedTranscript.append("\n📖 翻譯：").append(clean);
+                    committedTranscript.append("\n📖 翻譯與小抄：\n").append(clean);
                     renderTranscriptView();
                     return;
                 }
@@ -1004,6 +1013,9 @@ public class NativeLiveActivity extends Activity {
             currentTurnRole = "ai";
             currentTurnText.setLength(0);
             currentTurnTranslation = clean;
+            if (client != null && !client.isAiSpeaking()) {
+                isCurrentTurnTranslationRevealed = true;
+            }
             renderTranscriptView();
         }
     }
@@ -1019,8 +1031,9 @@ public class NativeLiveActivity extends Activity {
         committedTranscript.append(isAi ? "🤖 導師: " : "🗣️ 你: ");
         committedTranscript.append(currentTurnText.toString().trim());
         if (isAi && !currentTurnTranslation.isEmpty()) {
-            committedTranscript.append("\n📖 翻譯：").append(currentTurnTranslation.trim());
+            committedTranscript.append("\n📖 翻譯與小抄：\n").append(currentTurnTranslation.trim());
         }
+        isCurrentTurnTranslationRevealed = false;
     }
 
     private void renderTranscriptView() {
@@ -1038,8 +1051,8 @@ public class NativeLiveActivity extends Activity {
             } else {
                 display.append(spoken);
             }
-            if (isAi && !currentTurnTranslation.isEmpty()) {
-                display.append("\n📖 翻譯：").append(currentTurnTranslation);
+            if (isAi && !currentTurnTranslation.isEmpty() && isCurrentTurnTranslationRevealed) {
+                display.append("\n📖 翻譯與小抄：\n").append(currentTurnTranslation);
             }
         }
         transcript.setText(display.toString());

@@ -518,6 +518,21 @@ public class FloatingBubbleManager {
     private String currentBubbleTurnRole = "";
     private final StringBuilder currentBubbleTurnText = new StringBuilder();
     private String currentBubbleTurnTranslation = "";
+    private boolean isCurrentBubbleTranslationRevealed = false;
+
+    public void onSpeakingChanged(final boolean speaking) {
+        mainHandler.post(new Runnable() {
+            @Override public void run() {
+                if (speaking) {
+                    isCurrentBubbleTranslationRevealed = false;
+                } else {
+                    isCurrentBubbleTranslationRevealed = true;
+                    renderBubbleTranscriptView();
+                }
+                updateBubbleVoiceState();
+            }
+        });
+    }
 
     public void appendTranscript(final String text, final String role) {
         mainHandler.post(new Runnable() {
@@ -537,6 +552,7 @@ public class FloatingBubbleManager {
                     currentBubbleTurnRole = roleKey;
                     currentBubbleTurnText.setLength(0);
                     currentBubbleTurnTranslation = "";
+                    isCurrentBubbleTranslationRevealed = !isAi;
                 }
 
                 currentBubbleTurnText.append(text);
@@ -550,14 +566,18 @@ public class FloatingBubbleManager {
         String clean = text.trim();
         if ("ai".equals(currentBubbleTurnRole)) {
             currentBubbleTurnTranslation = clean;
+            if (!NativeLiveService.isAiSpeaking()) {
+                isCurrentBubbleTranslationRevealed = true;
+            }
             renderBubbleTranscriptView();
         } else {
             // If previous turn in history was AI without translation, append underneath it
             int lastAiIdx = committedTranscriptLog.lastIndexOf("🤖 導師: ");
             if (lastAiIdx != -1) {
-                int lastTransIdx = committedTranscriptLog.lastIndexOf("📖 翻譯：");
+                int lastTransIdx = committedTranscriptLog.lastIndexOf("📖 翻譯與小抄：");
+                if (lastTransIdx == -1) lastTransIdx = committedTranscriptLog.lastIndexOf("📖 翻譯：");
                 if (lastTransIdx < lastAiIdx) {
-                    committedTranscriptLog.append("\n📖 翻譯：").append(clean);
+                    committedTranscriptLog.append("\n📖 翻譯與小抄：\n").append(clean);
                     renderBubbleTranscriptView();
                     return;
                 }
@@ -567,6 +587,9 @@ public class FloatingBubbleManager {
             currentBubbleTurnRole = "ai";
             currentBubbleTurnText.setLength(0);
             currentBubbleTurnTranslation = clean;
+            if (!NativeLiveService.isAiSpeaking()) {
+                isCurrentBubbleTranslationRevealed = true;
+            }
             renderBubbleTranscriptView();
         }
     }
@@ -582,8 +605,9 @@ public class FloatingBubbleManager {
         committedTranscriptLog.append(isAi ? "🤖 導師: " : "🗣️ 你: ");
         committedTranscriptLog.append(currentBubbleTurnText.toString().trim());
         if (isAi && !currentBubbleTurnTranslation.isEmpty()) {
-            committedTranscriptLog.append("\n📖 翻譯：").append(currentBubbleTurnTranslation.trim());
+            committedTranscriptLog.append("\n📖 翻譯與小抄：\n").append(currentBubbleTurnTranslation.trim());
         }
+        isCurrentBubbleTranslationRevealed = false;
     }
 
     private void renderBubbleTranscriptView() {
@@ -600,8 +624,8 @@ public class FloatingBubbleManager {
             } else {
                 display.append(spoken);
             }
-            if (isAi && !currentBubbleTurnTranslation.isEmpty()) {
-                display.append("\n📖 翻譯：").append(currentBubbleTurnTranslation);
+            if (isAi && !currentBubbleTurnTranslation.isEmpty() && isCurrentBubbleTranslationRevealed) {
+                display.append("\n📖 翻譯與小抄：\n").append(currentBubbleTurnTranslation);
             }
         }
         latestTranscript = display.toString();

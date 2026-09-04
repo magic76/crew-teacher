@@ -354,15 +354,33 @@ public class NativeGeminiLiveClient {
                                     sb.append(nativeTrans);
                                 }
                                 if (!keyVocab.isEmpty()) {
-                                    if (sb.length() > 0) sb.append(" · ");
-                                    sb.append("💡 ").append(keyVocab);
+                                    if (sb.length() > 0) sb.append("\n");
+                                    sb.append("💡 單字/句型：").append(keyVocab);
+                                }
+
+                                JSONArray hints = args.optJSONArray("suggested_replies");
+                                if (hints != null && hints.length() > 0) {
+                                    if (sb.length() > 0) sb.append("\n💬 建議回答小抄：");
+                                    for (int h = 0; h < hints.length(); h++) {
+                                        String hint = hints.optString(h, "").trim();
+                                        if (!hint.isEmpty()) {
+                                            sb.append("\n  • ").append(hint);
+                                        }
+                                    }
+                                } else {
+                                    String singleHint = args.optString("suggested_replies", "").trim();
+                                    if (!singleHint.isEmpty()) {
+                                        if (sb.length() > 0) sb.append("\n💬 建議回答小抄：\n  • ").append(singleHint);
+                                    }
                                 }
 
                                 if (sb.length() > 0) {
                                     listener.onTranscript(sb.toString(), "translation");
                                 }
                             }
-                            sendToolResponse(id, name, new JSONObject().put("success", true));
+                            JSONObject res = new JSONObject().put("success", true)
+                                    .put("reminder", "MANDATORY: Always call display_bilingual_subtitle in every turn.");
+                            sendToolResponse(id, name, res);
                         } else if ("end_voice_session".equals(name)) {
                             sendToolResponse(id, name, new JSONObject().put("success", true).put("message", "對話已結束"));
                             interruptionHandler.postDelayed(new Runnable() {
@@ -437,21 +455,43 @@ public class NativeGeminiLiveClient {
         displaySubtitleProps.put("target_text", new JSONObject().put("type", "STRING").put("description", "The foreign sentence/phrase spoken by the tutor in " + langName));
         displaySubtitleProps.put("native_translation", new JSONObject().put("type", "STRING").put("description", "Accurate, natural translation in student's native language (" + nativeLang + ")"));
         displaySubtitleProps.put("key_vocab", new JSONObject().put("type", "STRING").put("description", "Optional key vocabulary, idioms, or grammar notes with explanation"));
+        JSONObject hintItems = new JSONObject().put("type", "STRING");
+        JSONObject hintsSchema = new JSONObject().put("type", "ARRAY").put("description", "2 to 3 practical sample response hints that the student could say back in " + langName + " (with " + nativeLang + " translation in parentheses), helping them answer effortlessly.").put("items", hintItems);
+        displaySubtitleProps.put("suggested_replies", hintsSchema);
+
         JSONObject displaySubtitleParams = new JSONObject();
         displaySubtitleParams.put("type", "OBJECT");
         displaySubtitleParams.put("properties", displaySubtitleProps);
-        displaySubtitleParams.put("required", new JSONArray().put("target_text").put("native_translation"));
+        displaySubtitleParams.put("required", new JSONArray().put("target_text").put("native_translation").put("suggested_replies"));
 
         tools.put(new JSONObject().put("name", "display_bilingual_subtitle")
-                .put("description", "Display real-time visual bilingual subtitle card on the student's screen containing the target text and its native translation.")
+                .put("description", "MANDATORY in every single turn: Display real-time visual bilingual subtitle card on the student's screen containing the target text, native translation, key vocabulary, and 2-3 sample response hints in " + langName + " for the student.")
                 .put("parameters", displaySubtitleParams));
 
         setup.put("tools", new JSONArray().put(new JSONObject().put("functionDeclarations", tools)));
 
-        String personaDetail = "daily".equals(tutorPersona) ? "Daily life, hobbies, current events, and casual chats." :
-                ("travel".equals(tutorPersona) ? "Travel scenarios (airport, hotel, ordering food, asking directions)." :
-                ("business".equals(tutorPersona) ? "Professional business language, meetings, presentations, and email writing." :
-                ("exam".equals(tutorPersona) ? "Oral exam preparation / certification with structured questions and feedback." : "Friendly conversational practice.")));
+        String personaDetail;
+        if ("travel".equals(tutorPersona)) {
+            personaDetail = "Travel scenarios (airport customs, hotel check-in, ordering food in restaurants, asking directions, transportation). Act as locals, flight attendants, hotel receptionists, or waiters.";
+        } else if ("business".equals(tutorPersona)) {
+            personaDetail = "Professional business communication (project updates, sprint planning, client negotiations, business presentations, cross-cultural teamwork). Maintain a professional, concise, and structured workplace tone.";
+        } else if ("interview".equals(tutorPersona)) {
+            personaDetail = "Realistic job interview simulation. Act as a demanding but encouraging interviewer. Ask behavioral questions using the STAR framework, probe into background, strengths, problem-solving, and salary expectations.";
+        } else if ("exam".equals(tutorPersona)) {
+            personaDetail = "Standardized speaking exam simulation (IELTS Speaking Part 1/2/3, TOEFL iBT, TOEIC). Give prompt cards, ask in-depth abstract follow-up questions, and evaluate fluency, lexical resource, and coherence.";
+        } else if ("shopping".equals(tutorPersona)) {
+            personaDetail = "Shopping, retail and negotiation scenarios (asking for sizes/discounts, bargaining at markets, processing tax refunds, handling returns and exchanges). Act as shop assistants and cashiers.";
+        } else if ("medical".equals(tutorPersona)) {
+            personaDetail = "Medical and pharmacy scenarios (describing physical symptoms, visiting a clinic/hospital, consulting a pharmacist, dental visits). Act as doctors, nurses, or pharmacists.";
+        } else if ("housing".equals(tutorPersona)) {
+            personaDetail = "Apartment hunting and tenancy scenarios (inquiring about apartment listings, negotiating lease terms, discussing house rules with roommates, requesting repairs with landlord).";
+        } else if ("dating".equals(tutorPersona)) {
+            personaDetail = "Social mingling, coffee chats, and dating scenarios (breaking the ice, casual banter, sharing interesting life stories, finding common hobbies). Keep the mood friendly, humorous, and natural.";
+        } else if ("tech".equals(tutorPersona)) {
+            personaDetail = "Tech, software engineering, and AI discussions (system architecture, coding best practices, machine learning, generative AI, tech news, startup ecosystem). Use authentic technical vocabulary.";
+        } else {
+            personaDetail = "Daily life, hobbies, current events, weekend plans, and casual friendly chats.";
+        }
 
         String modeInstruction;
         String rules;
@@ -497,17 +537,18 @@ public class NativeGeminiLiveClient {
                     + "3. Call 'display_bilingual_subtitle' in every turn to display " + nativeLang + " subtitle on screen.\n"
                     + "4. When the student says goodbye or wants to exit, say a warm farewell and call 'end_voice_session'.";
         } else {
-            // 雙語對照模式（預設推薦）：耳朵聽 100% 純外語發音，同時呼叫 Tool 在螢幕即時顯示母語 (中文/英文) 翻譯與學習筆記
+            // 雙語對照模式（預設推薦）：耳朵聽 100% 純外語發音，同時呼叫 Tool 在螢幕即時顯示母語 (中文/英文) 翻譯與學習筆記及建議回答小抄
             modeInstruction = "【Teaching Mode: BILINGUAL SCAFFOLDING & REAL-TIME VISUAL SUBTITLE (雙語字幕對照教學模式)】\n"
                     + "1. AUDIO RULE (Pure Target Language): Speak 100% in natural, fluent, native " + langName + " (絕對嚴禁在語音中說出 " + nativeLang + "！耳聽純外語沉浸).\n"
-                    + "2. TOOL CALL (Mandatory Visual Translation): In EVERY single turn, you MUST call 'display_bilingual_subtitle' with:\n"
+                    + "2. TOOL CALL (Mandatory Visual Translation & Smart Reply Hints): In EVERY single turn without exception, you MUST call 'display_bilingual_subtitle' with:\n"
                     + "   - target_text: your spoken sentence in " + langName + "\n"
-                    + "   - native_translation: the natural, accurate translation in " + nativeLang + "\n"
-                    + "   - key_vocab: (optional) any useful vocabulary or idioms from your response\n"
+                    + "   - native_translation: natural, accurate translation in " + nativeLang + "\n"
+                    + "   - key_vocab: (optional) useful vocabulary or idioms from your response\n"
+                    + "   - suggested_replies: 2 to 3 sample sentences in " + langName + " (with " + nativeLang + " translation in parentheses) that the student can use to answer you\n"
                     + "3. Always end your spoken sentence with an open-ended question in " + langName + " so the student has an easy cue to reply in " + langName + ".";
             rules = "CRITICAL BILINGUAL RULES:\n"
                     + "1. 100% PURE " + langName + " IN AUDIO: Never speak " + nativeLang + " in the audio stream.\n"
-                    + "2. EVERY TURN CALL 'display_bilingual_subtitle' to supply visual subtitle & notes in " + nativeLang + " for the student.\n"
+                    + "2. EVERY TURN CALL 'display_bilingual_subtitle' to supply visual subtitle, notes, and 2-3 reply hints in " + nativeLang + " for the student.\n"
                     + "3. Keep spoken responses natural and concise (1-2 sentences in " + langName + ").\n"
                     + "4. ACTIVE RECAST: If the student makes mistakes in " + langName + ", model the corrected sentence in " + langName + " and explain the correction in 'native_translation' via the tool call.\n"
                     + "5. When the student says goodbye or wants to exit, say farewell in " + langName + " and call 'end_voice_session'.";
@@ -538,8 +579,18 @@ public class NativeGeminiLiveClient {
     private void translateAsync(final String sourceText) {
         if (apiKey == null || apiKey.isEmpty() || sourceText.isEmpty()) return;
         String targetLang = AppConfig.getStudentLanguageDisplayName(context);
-        final String prompt = "Translate the following spoken sentence into natural, fluent " + targetLang + ".\n"
-                + "Output ONLY the direct translation text with no markdown formatting, no explanations, and no quotes:\n\n" + sourceText;
+        String practiceLang = getLanguageDisplayName(tutorLang);
+        final String prompt = "You are a professional language tutor assistant.\n"
+                + "Given the tutor's spoken sentence in " + practiceLang + ":\n\"" + sourceText + "\"\n\n"
+                + "Provide:\n"
+                + "1. Natural, fluent translation in student's native language (" + targetLang + ")\n"
+                + "2. Two sample response hints in " + practiceLang + " (with " + targetLang + " translation in parentheses) that the student can use to answer back.\n\n"
+                + "Format your response EXACTLY as:\n"
+                + "[Direct translation in " + targetLang + "]\n"
+                + "💬 建議回答小抄：\n"
+                + "  • [Reply Option 1 in " + practiceLang + "] ([translation in " + targetLang + "])\n"
+                + "  • [Reply Option 2 in " + practiceLang + "] ([translation in " + targetLang + "])\n\n"
+                + "Output ONLY this formatted text without any markdown bolding, greetings, or extra explanations.";
         tryTranslateAt(0, prompt);
     }
 

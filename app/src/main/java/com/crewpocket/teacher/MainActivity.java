@@ -628,10 +628,16 @@ public class MainActivity extends Activity {
     }
 
     public static String getPersonaLabel(String persona, boolean en) {
-        if ("travel".equals(persona)) return en ? "Travel & Dining" : "出國旅遊 (Travel & Dining)";
-        if ("business".equals(persona)) return en ? "Business English" : "職場商務 (Business English)";
-        if ("exam".equals(persona)) return en ? "TOEIC / IELTS Speaking" : "口說備考 (TOEIC/IELTS)";
-        return en ? "Daily Life & Hobbies" : "日常閒聊 (Daily Life)";
+        if ("travel".equals(persona)) return en ? "Travel & Dining" : "✈️ 出國旅遊 (Travel & Dining)";
+        if ("business".equals(persona)) return en ? "Workplace Business" : "💼 職場商務 (Business English)";
+        if ("interview".equals(persona)) return en ? "Job Interview" : "👔 求職面試 (Job Interview)";
+        if ("exam".equals(persona)) return en ? "Exam Prep (IELTS/TOEFL)" : "🎯 口說備考 (IELTS/TOEFL/TOEIC)";
+        if ("shopping".equals(persona)) return en ? "Shopping & Returns" : "🛍️ 購物退稅 (Shopping & Bargaining)";
+        if ("medical".equals(persona)) return en ? "Doctor & Medical" : "🏥 醫院看診 (Doctor & Medical)";
+        if ("housing".equals(persona)) return en ? "Renting & Housing" : "🏠 租屋看房 (Apartment & Housing)";
+        if ("dating".equals(persona)) return en ? "Dating & Social" : "☕ 交友約會 (Dating & Social)";
+        if ("tech".equals(persona)) return en ? "Tech & AI Trends" : "🤖 科技趨勢 (Tech & AI Trends)";
+        return en ? "Daily Life & Hobbies" : "☕ 日常閒聊 (Daily Life & Hobbies)";
     }
 
     private void showLanguageDialog() {
@@ -719,14 +725,20 @@ public class MainActivity extends Activity {
     private void showPersonaDialog() {
         final boolean en = I18n.isEnglish(this);
         final String[] items = {
-                en ? "Daily Life & Hobbies" : "日常閒聊 (Daily Life & Hobbies)",
-                en ? "Travel Scenarios & Dining" : "出國旅遊 (Travel & Dining)",
-                en ? "Business & Professional English" : "職場商務 (Business English)",
-                en ? "Exam & Certification Prep (TOEIC/IELTS)" : "考試備考 (TOEIC/IELTS Speaking)"
+                en ? "☕ Daily Life & Hobbies (Casual chats, food, weekend plans)" : "☕ 日常閒聊 (Daily Life: 興趣、生活、週末規劃)",
+                en ? "✈️ Travel & Dining (Airport, hotel check-in, ordering, asking directions)" : "✈️ 出國旅遊 (Travel & Dining: 機場、飯店、點餐、問路)",
+                en ? "💼 Workplace & Business (Meetings, presentations, negotiations)" : "💼 職場商務 (Business: 會議匯報、專案討論、商務談判)",
+                en ? "👔 Job Interview Simulation (STAR method, career, strengths/weaknesses)" : "👔 求職面試 (Job Interview: STAR 法則、工作經驗、面試應對)",
+                en ? "🎯 Exam Prep Simulation (IELTS Speaking Part 2/3, TOEFL, TOEIC)" : "🎯 口說備考 (Exam Prep: 雅思 IELTS / 托福 TOEFL / 多益)",
+                en ? "🛍️ Shopping & Returns (Bargaining, sizes, tax refund, returns)" : "🛍️ 購物退稅 (Shopping: 殺價、挑尺寸、退稅、商品換貨)",
+                en ? "🏥 Doctor Visit & Medical (Describing symptoms, pharmacy, healthcare)" : "🏥 醫院看診 (Medical: 描述身體症狀、藥局拿藥、看診諮詢)",
+                en ? "🏠 Renting & Housing (Apartment hunting, lease terms, landlord repairs)" : "🏠 租屋看房 (Housing: 預約看房、租約討論、水電修繕)",
+                en ? "💬 Dating & Social Mingling (Icebreakers, casual banter, hobbies, parties)" : "💬 交友約會 (Dating & Social: 社交破冰、約會聊天、認識新朋友)",
+                en ? "🤖 Tech & AI Trends (Software development, LLMs, future tech trends)" : "🤖 科技趨勢 (Tech & AI: 軟體開發、人工智慧、科技創新)"
         };
-        final String[] values = {"daily", "travel", "business", "exam"};
+        final String[] values = {"daily", "travel", "business", "interview", "exam", "shopping", "medical", "housing", "dating", "tech"};
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        builder.setTitle(en ? "🎭 Choose Conversation Scenario" : "🎭 選擇情境模式");
+        builder.setTitle(en ? "🎭 Choose Conversation Scenario" : "🎭 選擇實戰情境劇本");
         builder.setItems(items, new DialogInterface.OnClickListener() {
             @Override public void onClick(DialogInterface dialog, int which) {
                 AppConfig.setTutorPersona(MainActivity.this, values[which]);
