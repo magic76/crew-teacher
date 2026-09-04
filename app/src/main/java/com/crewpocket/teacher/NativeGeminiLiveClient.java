@@ -22,8 +22,10 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
+import okhttp3.MediaType;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
+import okhttp3.RequestBody;
 import okhttp3.Response;
 import okhttp3.WebSocket;
 import okhttp3.WebSocketListener;
@@ -234,6 +236,8 @@ public class NativeGeminiLiveClient {
         }
     }
 
+    private final StringBuilder currentAiTurnText = new StringBuilder();
+
     private void handleServerMessage(String text) {
         try {
             JSONObject response = new JSONObject(text);
@@ -262,6 +266,7 @@ public class NativeGeminiLiveClient {
                     }
                     interruptionHandler.removeCallbacks(clearInterruptedFallback);
                     interruptedCurrentTurn = false;
+                    currentAiTurnText.setLength(0);
                     return;
                 }
 
@@ -274,7 +279,9 @@ public class NativeGeminiLiveClient {
                 JSONObject outputTranscript = server.optJSONObject("outputTranscription");
                 if (outputTranscript == null) outputTranscript = server.optJSONObject("output_transcription");
                 if (outputTranscript != null && !outputTranscript.optString("text").isEmpty()) {
-                    listener.onTranscript(outputTranscript.optString("text"), "ai");
+                    String t = outputTranscript.optString("text");
+                    currentAiTurnText.append(t);
+                    listener.onTranscript(t, "ai");
                 }
 
                 JSONObject turn = server.optJSONObject("modelTurn");
@@ -290,6 +297,7 @@ public class NativeGeminiLiveClient {
                             JSONObject part = parts.getJSONObject(i);
                             if (part.has("text")) {
                                 String t = part.getString("text");
+                                currentAiTurnText.append(t);
                                 listener.onTranscript(t, "ai");
                             }
                             JSONObject inline = part.optJSONObject("inlineData");
@@ -310,6 +318,12 @@ public class NativeGeminiLiveClient {
                     if (aiSpeaking) {
                         aiSpeaking = false;
                         listener.onSpeakingChanged(false);
+                    }
+                    final String completeTurnText = currentAiTurnText.toString().trim();
+                    currentAiTurnText.setLength(0);
+                    String mode = AppConfig.getTeachingMode(context);
+                    if (!"immersion".equals(mode) && !completeTurnText.isEmpty()) {
+                        translateAsync(completeTurnText);
                     }
                 }
             }
@@ -401,45 +415,40 @@ public class NativeGeminiLiveClient {
         String rules;
 
         if ("immersion".equals(teachingMode)) {
-            // 全外語沉浸模式：100% 目標語言，絕對不夾雜中文或任何翻譯
+            // 全外語沉浸模式：100% 目標語言，不附帶螢幕翻譯
             modeInstruction = "【Teaching Mode: 100% FULL IMMERSION (全外語沉浸模式)】\n"
                     + "ABSOLUTE RULE: Speak ONLY in 100% natural, fluent, native " + langName + " throughout the ENTIRE session.\n"
-                    + "NEVER speak " + nativeLang + ", NEVER provide translations, and NEVER explain in " + nativeLang + " unless the student explicitly commands you to translate.\n"
-                    + "Create a complete, authentic immersion environment in " + langName + " for the learner.";
+                    + "NEVER speak " + nativeLang + ", NEVER provide translations in speech, and create an authentic immersion environment in " + langName + ".";
             rules = "CRITICAL CONVERSATIONAL RULES (FULL IMMERSION):\n"
-                    + "1. 100% " + langName + " EXCLUSIVELY: Do NOT output any " + nativeLang + " words, sentences, or translations whatsoever.\n"
+                    + "1. 100% " + langName + " EXCLUSIVELY in audio: Do NOT output any " + nativeLang + " words or spoken translations.\n"
                     + "2. Keep responses natural, engaging, and concise (1-2 sentences in " + langName + ").\n"
                     + "3. Always end your turn with an engaging open-ended question in " + langName + " to keep the conversation flowing.\n"
                     + "4. GENTLE RECAST: If the student makes mistakes in " + langName + ", model the correct phrasing naturally in pure " + langName + ".\n"
                     + "5. When the student says goodbye or wants to exit, say a warm farewell in " + langName + " and call 'end_voice_session'.";
         } else if ("beginner".equals(teachingMode)) {
-            // 零基礎階段：先母語說明，再示範純目標語言短句，再邀請跟讀
-            modeInstruction = "【Teaching Mode: BEGINNER COACHING (零基礎陪伴跟讀模式)】\n"
-                    + "Structure for each turn:\n"
-                    + "1. Explain the context or instruction clearly in " + nativeLang + " first.\n"
-                    + "2. Speak ONE short, practical sentence in 100% pure " + langName + " (no " + nativeLang + " words inside).\n"
-                    + "3. Provide the full translation in " + nativeLang + " and invite the user to repeat (e.g. '這句話的意思是...，跟我念一次：...').";
+            // 零基礎引導模式：純外語短句示範，螢幕自動即時翻譯
+            modeInstruction = "【Teaching Mode: BEGINNER STEP-BY-STEP (零基礎引導模式)】\n"
+                    + "ABSOLUTE AUDIO RULE: Speak ONE short, practical, easy-to-repeat sentence in 100% pure " + langName + ".\n"
+                    + "NEVER pronounce Chinese words in the audio stream. Pure audio only.";
             rules = "CRITICAL CONVERSATIONAL RULES (BEGINNER):\n"
-                    + "1. STRICT LANGUAGE SEPARATION: Keep " + langName + " and " + nativeLang + " in distinct sequential blocks. Never mix them in the same clause.\n"
-                    + "2. Keep phrases short, clear, and easy to mimic.\n"
+                    + "1. Speak short, crystal-clear practical phrases in pure " + langName + " for the learner to mimic.\n"
+                    + "2. DO NOT pronounce or speak any Chinese words out loud in audio.\n"
                     + "3. Encourage the student warmly whenever they try speaking.\n"
                     + "4. When the student says goodbye or wants to exit, say a warm farewell and call 'end_voice_session'.";
         } else {
-            // 雙語對照模式（預設推薦）：嚴格順序分段（先整段目標語言，說完後再整段母語翻譯）
-            modeInstruction = "【Teaching Mode: SEQUENTIAL BILINGUAL (雙語完整對照模式 - 推薦)】\n"
-                    + "CRITICAL RULE: DO NOT MIX LANGUAGES WITHIN A SENTENCE (嚴禁中英夾雜！)\n"
-                    + "Every response MUST follow this exact two-phase sequence:\n"
-                    + "Phase 1 [100% Pure " + langName + " ONLY]: Speak your full response (1-2 complete sentences) entirely in " + langName + ".\n"
-                    + "Phase 2 [100% Pure " + nativeLang + " ONLY]: Immediately follow with the complete, natural translation in " + nativeLang + " for what you just said.\n"
-                    + "Example:\n"
-                    + "'I really love spending my weekends hiking in the mountains. How about you? " + (isUiEn ? "I really love hiking in the mountains on weekends. What do you usually do on weekends?" : "我非常喜歡在週末去山裡健行。你週末通常都做些什麼呢？") + "'";
-            rules = "CRITICAL CONVERSATIONAL RULES (BILINGUAL):\n"
-                    + "1. STRICT LANGUAGE SEPARATION (NO CODE-SWITCHING): Always speak the entire " + langName + " sentence(s) first, and ONLY THEN speak the complete " + nativeLang + " translation.\n"
-                    + "2. Keep responses concise (1-2 sentences in " + langName + " followed by 1-2 sentences of translation).\n"
+            // 雙語對照模式（預設推薦）：純外語語音發音 + 螢幕字幕中文即時對照（耳聽純外語，眼看中文字幕）
+            modeInstruction = "【Teaching Mode: PURE SPOKEN TARGET LANGUAGE (純外語發音口說模式)】\n"
+                    + "CRITICAL SPOKEN AUDIO RULE: You MUST speak EXCLUSIVELY in 100% pure, natural, fluent " + langName + " (絕對嚴禁在語音中說出中文！)\n"
+                    + "The student wants to train listening to pure " + langName + ". Translations are provided on screen visually.\n"
+                    + "NEVER pronounce, read, or speak any Chinese words out loud in audio.\n"
+                    + "Example spoken response:\n"
+                    + "'I really love spending my weekends hiking in the mountains. How about you? What do you usually like to do on weekends?'";
+            rules = "CRITICAL CONVERSATIONAL RULES:\n"
+                    + "1. 100% PURE " + langName + " IN AUDIO: Speak entirely in natural " + langName + " with standard pronunciation.\n"
+                    + "2. Keep spoken responses natural and concise (1-2 sentences in " + langName + ").\n"
                     + "3. Always end your turn with a clear, open-ended question in " + langName + " so the student has an easy cue to reply in " + langName + ".\n"
-                    + "4. GENTLE RECAST: If the student makes grammatical mistakes, first provide the correct phrasing in pure " + langName + ", then explain briefly in " + nativeLang + ".\n"
-                    + "5. If the student speaks in " + nativeLang + " asking for help, explain warmly in " + nativeLang + ", then provide the corresponding " + langName + " sentence for them to practice.\n"
-                    + "6. When the student says goodbye or wants to exit, say a warm farewell and call 'end_voice_session'.";
+                    + "4. GENTLE RECAST: If the student makes grammatical mistakes, model the correct phrasing naturally in pure " + langName + ".\n"
+                    + "5. When the student says goodbye or wants to exit, say a warm farewell in " + langName + " and call 'end_voice_session'.";
         }
 
         String baseInstruction = "You are 'Crew Teacher', an encouraging, empathetic, and friendly 1-on-1 language tutor. "
@@ -455,6 +464,51 @@ public class NativeGeminiLiveClient {
         setup.put("systemInstruction", new JSONObject().put("parts", new JSONArray().put(new JSONObject().put("text", baseInstruction))));
         root.put("setup", setup);
         return root.toString();
+    }
+
+    private void translateAsync(final String sourceText) {
+        if (apiKey == null || apiKey.isEmpty() || sourceText.isEmpty()) return;
+        boolean isUiEn = I18n.isEnglish(context);
+        String targetLang = isUiEn ? "English" : "Traditional Chinese (繁體中文)";
+        if ("zh".equalsIgnoreCase(tutorLang) && !isUiEn) {
+            targetLang = "English";
+        }
+        final String prompt = "Translate the following speech text into natural, concise " + targetLang + ".\n"
+                + "Output ONLY the direct translation text with no markdown formatting, no explanations, and no quotes:\n\n" + sourceText;
+        try {
+            JSONObject root = new JSONObject();
+            JSONArray parts = new JSONArray().put(new JSONObject().put("text", prompt));
+            JSONArray contents = new JSONArray().put(new JSONObject().put("parts", parts));
+            root.put("contents", contents);
+
+            String url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + apiKey;
+            RequestBody body = RequestBody.create(MediaType.parse("application/json; charset=utf-8"), root.toString());
+            Request req = new Request.Builder().url(url).post(body).build();
+            httpClient.newCall(req).enqueue(new okhttp3.Callback() {
+                @Override public void onFailure(okhttp3.Call call, java.io.IOException e) {}
+                @Override public void onResponse(okhttp3.Call call, Response response) throws java.io.IOException {
+                    try {
+                        if (response.isSuccessful() && response.body() != null) {
+                            String resStr = response.body().string();
+                            JSONObject json = new JSONObject(resStr);
+                            JSONArray candidates = json.optJSONArray("candidates");
+                            if (candidates != null && candidates.length() > 0) {
+                                JSONObject content = candidates.getJSONObject(0).optJSONObject("content");
+                                if (content != null) {
+                                    JSONArray resParts = content.optJSONArray("parts");
+                                    if (resParts != null && resParts.length() > 0) {
+                                        String translation = resParts.getJSONObject(0).optString("text", "").trim();
+                                        if (!translation.isEmpty()) {
+                                            listener.onTranscript(translation, "translation");
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    } catch (Exception ignored) {}
+                }
+            });
+        } catch (Exception ignored) {}
     }
 
     private static String getLanguageDisplayName(String code) {

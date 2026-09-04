@@ -367,14 +367,22 @@ public class FloatingBubbleManager {
         transcriptText.setTextColor(Color.parseColor("#E2E8F0"));
         transcriptText.setTextSize(14);
         transcriptText.setLineSpacing(dp(2), 1.15f);
-        transcriptScroll.addView(transcriptText);
-        root.addView(transcriptScroll);
-
-        transcriptScroll.post(new Runnable() {
-            @Override public void run() {
-                if (transcriptScroll != null) transcriptScroll.fullScroll(View.FOCUS_DOWN);
+        transcriptText.addOnLayoutChangeListener(new View.OnLayoutChangeListener() {
+            @Override
+            public void onLayoutChange(View v, int left, int top, int right, int bottom, int oldLeft, int oldTop, int oldRight, int oldBottom) {
+                if (transcriptScroll != null) {
+                    transcriptScroll.post(new Runnable() {
+                        @Override public void run() {
+                            if (transcriptScroll != null) {
+                                transcriptScroll.fullScroll(View.FOCUS_DOWN);
+                            }
+                        }
+                    });
+                }
             }
         });
+        transcriptScroll.addView(transcriptText);
+        root.addView(transcriptScroll);
 
         // Action Buttons Row 1: Call & Mute & Audio Output
         LinearLayout actions = new LinearLayout(context);
@@ -513,6 +521,16 @@ public class FloatingBubbleManager {
         mainHandler.post(new Runnable() {
             @Override public void run() {
                 if (text == null || text.isEmpty()) return;
+                if ("translation".equalsIgnoreCase(role)) {
+                    fullTranscriptLog.append("\n📖 翻譯：").append(text);
+                    latestTranscript = fullTranscriptLog.toString();
+                    if (transcriptText != null) {
+                        transcriptText.setText(latestTranscript);
+                    }
+                    currentTurnRole = "";
+                    return;
+                }
+
                 boolean isAi = "ai".equalsIgnoreCase(role) || "Gemini".equalsIgnoreCase(role);
                 String roleKey = isAi ? "ai" : "user";
                 String prefix = isAi ? "🤖 導師: " : "🗣️ 你: ";
@@ -528,15 +546,6 @@ public class FloatingBubbleManager {
                 latestTranscript = fullTranscriptLog.toString();
                 if (transcriptText != null) {
                     transcriptText.setText(latestTranscript);
-                }
-                if (transcriptScroll != null) {
-                    transcriptScroll.post(new Runnable() {
-                        @Override public void run() {
-                            if (transcriptScroll != null) {
-                                transcriptScroll.fullScroll(View.FOCUS_DOWN);
-                            }
-                        }
-                    });
                 }
             }
         });

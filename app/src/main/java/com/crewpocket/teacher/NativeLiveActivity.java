@@ -137,6 +137,20 @@ public class NativeLiveActivity extends Activity {
         transcript.setTextColor(CrewTheme.TEXT_PRIMARY);
         transcript.setTextSize(14);
         transcript.setLineSpacing(dp(3), 1.2f);
+        transcript.addOnLayoutChangeListener(new View.OnLayoutChangeListener() {
+            @Override
+            public void onLayoutChange(View v, int left, int top, int right, int bottom, int oldLeft, int oldTop, int oldRight, int oldBottom) {
+                if (transcriptScrollView != null) {
+                    transcriptScrollView.post(new Runnable() {
+                        @Override public void run() {
+                            if (transcriptScrollView != null) {
+                                transcriptScrollView.fullScroll(View.FOCUS_DOWN);
+                            }
+                        }
+                    });
+                }
+            }
+        });
         transcriptScrollView.addView(transcript);
         transcriptCard.addView(transcriptScrollView);
 
@@ -305,6 +319,12 @@ public class NativeLiveActivity extends Activity {
             existing = "";
         }
 
+        if ("translation".equalsIgnoreCase(role)) {
+            transcript.setText(existing + "\n📖 翻譯：" + text);
+            lastTranscriptRole = "";
+            return;
+        }
+
         boolean isAi = "ai".equalsIgnoreCase(role) || "Gemini".equalsIgnoreCase(role);
         String roleKey = isAi ? "ai" : "user";
         boolean sameSpeaker = roleKey.equals(lastTranscriptRole) && !existing.isEmpty();
@@ -312,16 +332,6 @@ public class NativeLiveActivity extends Activity {
         String prefix = sameSpeaker ? "" : (existing.isEmpty() ? "" : "\n\n") + (isAi ? "🤖 導師: " : "🗣️ 你: ");
         lastTranscriptRole = roleKey;
         transcript.setText(existing + prefix + text);
-
-        if (transcriptScrollView != null) {
-            transcriptScrollView.post(new Runnable() {
-                @Override public void run() {
-                    if (transcriptScrollView != null) {
-                        transcriptScrollView.fullScroll(View.FOCUS_DOWN);
-                    }
-                }
-            });
-        }
     }
 
     private void showApiKeyDialog() {
