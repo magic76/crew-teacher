@@ -56,7 +56,6 @@ public class NativeLiveActivity extends Activity {
     private int[] wordStates; // 0 = Pending (grey), 1 = Correct (green), 2 = Mispronounced/Skipped (red), 3 = Current (cyan)
     private final List<String> spokenTokenHistory = new ArrayList<String>();
     private TextView readingBoardText;
-    private TextView focusIndicatorBanner;
     private LinearLayout diagnosticCard;
     private TextView scoreBadge;
     private LinearLayout troubleWordsContainer;
@@ -243,25 +242,8 @@ public class NativeLiveActivity extends Activity {
             legendRow.setOrientation(LinearLayout.HORIZONTAL);
             legendRow.setPadding(0, dp(6), 0, dp(8));
             legendRow.addView(makeLegendDot("#22C55E", en ? "Correct" : "正確"));
-            legendRow.addView(makeLegendDot("#EF4444", en ? "Mispronounced" : "偏差/漏字"));
-            legendRow.addView(makeLegendDot("#F59E0B", en ? "Reading Focus" : "朗讀焦點"));
+            legendRow.addView(makeLegendDot("#EF4444", en ? "Mispronounced / Skipped" : "發音偏差/漏字"));
             boardCard.addView(legendRow);
-
-            // Prominent Focus Indicator Banner
-            focusIndicatorBanner = new TextView(this);
-            focusIndicatorBanner.setTextSize(11);
-            focusIndicatorBanner.setTypeface(Typeface.DEFAULT_BOLD);
-            focusIndicatorBanner.setPadding(dp(10), dp(6), dp(10), dp(6));
-            GradientDrawable fibBg = new GradientDrawable();
-            fibBg.setColor(Color.parseColor("#1E293B"));
-            fibBg.setCornerRadius(dp(8));
-            fibBg.setStroke(dp(1), Color.parseColor("#F59E0B"));
-            focusIndicatorBanner.setBackground(fibBg);
-            focusIndicatorBanner.setTextColor(Color.parseColor("#FBBF24"));
-            LinearLayout.LayoutParams fibLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-            fibLp.setMargins(0, 0, 0, dp(8));
-            focusIndicatorBanner.setLayoutParams(fibLp);
-            boardCard.addView(focusIndicatorBanner);
 
             readingBoardText = new TextView(this);
             readingBoardText.setTextSize(16);
@@ -464,9 +446,6 @@ public class NativeLiveActivity extends Activity {
             wordStates[i] = 0; // pending
         }
         spokenTokenHistory.clear();
-        if (wordStates.length > 0) {
-            wordStates[0] = 3; // first word is focus
-        }
     }
 
     private void resetReadingBoard() {
@@ -475,7 +454,6 @@ public class NativeLiveActivity extends Activity {
             for (int i = 0; i < wordStates.length; i++) {
                 wordStates[i] = 0;
             }
-            if (wordStates.length > 0) wordStates[0] = 3;
             renderReadingBoardSpannable();
         }
         if (troubleWordsContainer != null) {
@@ -495,29 +473,7 @@ public class NativeLiveActivity extends Activity {
         if (rawWords == null || rawWords.length == 0) {
             boolean en = I18n.isEnglish(this);
             readingBoardText.setText(en ? "⚪ (No reading passage loaded. Tap '✨ AI New' or '✏️ Custom' above)" : "⚪ (尚未載入朗讀教材，請點擊上方「✨ 換一篇」或「✏️ 自訂」)");
-            if (focusIndicatorBanner != null) focusIndicatorBanner.setVisibility(View.GONE);
             return;
-        }
-
-        int currentFocusIdx = -1;
-        for (int i = 0; i < wordStates.length; i++) {
-            if (wordStates[i] == 3) {
-                currentFocusIdx = i;
-                break;
-            }
-        }
-
-        if (focusIndicatorBanner != null) {
-            boolean en = I18n.isEnglish(this);
-            if (currentFocusIdx >= 0 && currentFocusIdx < rawWords.length) {
-                focusIndicatorBanner.setText(en
-                        ? ("🎯 Reading Focus (" + (currentFocusIdx + 1) + "/" + rawWords.length + "): ▶ \"" + rawWords[currentFocusIdx] + "\" (Speak to advance)")
-                        : ("🎯 朗讀焦點指引 (第 " + (currentFocusIdx + 1) + " / " + rawWords.length + " 字)：▶「 " + rawWords[currentFocusIdx] + " 」（開口朗讀自動前進）"));
-                focusIndicatorBanner.setVisibility(View.VISIBLE);
-            } else {
-                focusIndicatorBanner.setText(en ? "🎉 Completed entire passage!" : "🎉 已完成全文朗讀！");
-                focusIndicatorBanner.setVisibility(View.VISIBLE);
-            }
         }
 
         SpannableStringBuilder ssb = new SpannableStringBuilder();
@@ -540,17 +496,12 @@ public class NativeLiveActivity extends Activity {
                 ssb.setSpan(new ForegroundColorSpan(Color.parseColor("#EF4444")), start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
                 ssb.setSpan(new UnderlineSpan(), start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
                 ssb.setSpan(new StyleSpan(Typeface.BOLD), start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-            } else if (state == 3) {
-                // Current Focus -> High-contrast Amber Gold Badge + Solid Black Text
-                ssb.setSpan(new ForegroundColorSpan(Color.BLACK), start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-                ssb.setSpan(new BackgroundColorSpan(Color.parseColor("#F59E0B")), start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-                ssb.setSpan(new StyleSpan(Typeface.BOLD), start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
             } else {
-                // Pending -> Muted Silver/Gray
-                ssb.setSpan(new ForegroundColorSpan(Color.parseColor("#94A3B8")), start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                // Default / Unread -> Clean Silver White
+                ssb.setSpan(new ForegroundColorSpan(Color.parseColor("#E2E8F0")), start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
             }
 
-            // ClickableSpan so tapping ANY word speaks it, shows IPA, and sets focus!
+            // ClickableSpan so tapping ANY word speaks it and shows IPA & tips!
             ssb.setSpan(new ClickableSpan() {
                 @Override
                 public void onClick(View widget) {
@@ -558,11 +509,6 @@ public class NativeLiveActivity extends Activity {
                     String ipa = getIpaForWord(cleanWord);
                     String tip = getTipForWord(cleanWord);
                     Toast.makeText(NativeLiveActivity.this, rawWord + " " + ipa + "\n" + tip, Toast.LENGTH_SHORT).show();
-                    for (int k = 0; k < wordStates.length; k++) {
-                        if (wordStates[k] == 3) wordStates[k] = 0;
-                    }
-                    wordStates[wordIndex] = 3;
-                    renderReadingBoardSpannable();
                 }
                 @Override
                 public void updateDrawState(TextPaint ds) {
@@ -648,12 +594,6 @@ public class NativeLiveActivity extends Activity {
                     wordStates[refIdx] = 2; // Red (deviation/skipped)
                 }
             }
-        }
-
-        // Determine current focus pointer
-        int focusIdx = (lastMatchedRefIdx + 1 < cleanWords.length) ? lastMatchedRefIdx + 1 : cleanWords.length - 1;
-        if (focusIdx < cleanWords.length && wordStates[focusIdx] == 0) {
-            wordStates[focusIdx] = 3; // Blue focus
         }
 
         renderReadingBoardSpannable();
