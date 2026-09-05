@@ -513,15 +513,6 @@ public class NativeGeminiLiveClient {
         return root.toString();
     }
 
-    private static final String[] TRANSLATION_MODELS = {
-            "gemini-3.6-flash",
-            "gemini-3.5-flash",
-            "gemini-3.0-flash",
-            "gemini-3-flash",
-            "gemini-2.5-flash",
-            "gemini-2.0-flash"
-    };
-
     private void translateAsync(final String sourceText) {
         if (apiKey == null || apiKey.trim().isEmpty() || sourceText == null || sourceText.trim().isEmpty()) {
             Log.w(TAG, "translateAsync skipped: empty key or text");
@@ -542,105 +533,39 @@ public class NativeGeminiLiveClient {
                 + "  ]\n"
                 + "}\n"
                 + "Output ONLY the JSON object without markdown fences or code blocks.";
-        Log.d(TAG, "Triggering translation for: " + sourceText);
-        tryTranslateAt(0, sourceText.trim(), prompt);
-    }
 
-    private void tryTranslateAt(final int modelIdx, final String sourceText, final String prompt) {
-        if (modelIdx >= TRANSLATION_MODELS.length) {
-            Log.e(TAG, "All translation models failed for prompt: " + sourceText);
-            return;
-        }
-        final String model = TRANSLATION_MODELS[modelIdx];
-        try {
-            JSONObject root = new JSONObject();
-            JSONArray parts = new JSONArray().put(new JSONObject().put("text", prompt));
-            JSONArray contents = new JSONArray().put(new JSONObject().put("parts", parts));
-            root.put("contents", contents);
-
-            JSONObject genConfig = new JSONObject();
-            genConfig.put("temperature", 0.2);
-            genConfig.put("maxOutputTokens", 1024);
-            try { genConfig.put("responseMimeType", "application/json"); } catch (Exception ignored) {}
-            root.put("generationConfig", genConfig);
-
-            String url = "https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent?key=" + apiKey;
-            RequestBody body = RequestBody.create(MediaType.parse("application/json; charset=utf-8"), root.toString());
-            Request req = new Request.Builder().url(url).post(body).build();
-            httpClient.newCall(req).enqueue(new okhttp3.Callback() {
-                @Override public void onFailure(okhttp3.Call call, java.io.IOException e) {
-                    Log.w(TAG, "Translation model " + model + " network failure: " + e.getMessage());
-                    tryTranslateAt(modelIdx + 1, sourceText, prompt);
-                }
-                @Override public void onResponse(okhttp3.Call call, Response response) throws java.io.IOException {
-                    try {
-                        if (response.isSuccessful() && response.body() != null) {
-                            String resStr = response.body().string();
-                            JSONObject json = new JSONObject(resStr);
-                            JSONArray candidates = json.optJSONArray("candidates");
-                            if (candidates != null && candidates.length() > 0) {
-                                JSONObject content = candidates.getJSONObject(0).optJSONObject("content");
-                                if (content != null) {
-                                    JSONArray resParts = content.optJSONArray("parts");
-                                    if (resParts != null && resParts.length() > 0) {
-                                        String raw = resParts.getJSONObject(0).optString("text", "").trim();
-                                        String jsonToParse = raw;
-                                        int firstBrace = raw.indexOf("{");
-                                        int lastBrace = raw.lastIndexOf("}");
-                                        if (firstBrace >= 0 && lastBrace > firstBrace) {
-                                            jsonToParse = raw.substring(firstBrace, lastBrace + 1);
-                                        }
-                                        try {
-                                            JSONObject obj = new JSONObject(jsonToParse);
-                                            String mainTrans = obj.optString("translation", "").trim();
-                                            String keyVocab = obj.optString("key_vocab", "").trim();
-                                            JSONArray hintsArr = obj.optJSONArray("suggested_replies");
-                                            java.util.List<String> hints = new java.util.ArrayList<String>();
-                                            if (hintsArr != null) {
-                                                for (int h = 0; h < hintsArr.length(); h++) {
-                                                    String hint = hintsArr.optString(h, "").trim();
-                                                    if (!hint.isEmpty()) hints.add(hint);
-                                                }
-                                            }
-                                            if (!mainTrans.isEmpty()) {
-                                                listener.onSubtitleData(sourceText, mainTrans, keyVocab, hints);
-                                                return;
-                                            }
-                                        } catch (Exception parseJsonErr) {
-                                            Log.w(TAG, "JSON parse error: " + parseJsonErr.getMessage() + ", raw=" + raw);
-                                        }
-                                        String mainTrans = extractFieldByRegex(raw, "translation");
-                                        String keyVocab = extractFieldByRegex(raw, "key_vocab");
-                                        if (!mainTrans.isEmpty()) {
-                                            listener.onSubtitleData(sourceText, mainTrans, keyVocab, new java.util.ArrayList<String>());
-                                            return;
-                                        }
-                                        if (!raw.isEmpty()) {
-                                            listener.onSubtitleData(sourceText, raw, "", new java.util.ArrayList<String>());
-                                            return;
-                                        }
-                                    }
-                                }
-                            }
-                        } else {
-                            String errBody = "";
-                            try { if (response.body() != null) errBody = response.body().string(); } catch (Exception ignored) {}
-                            Log.w(TAG, "Translation model " + model + " returned code " + response.code() + ", msg=" + response.message() + ", body=" + errBody);
-                        }
-                    } catch (Exception e) {
-                        Log.w(TAG, "Translation parse error for " + model + ": " + e.getMessage());
-                    } finally {
-                        if (response != null) {
-                            try { response.close(); } catch (Exception ignored) {}
-                        }
+        GeminiApiClient.generateJson(apiKey, prompt, new GeminiApiClient.JsonCallback() {
+            @Override
+            public void onSuccess(JSONObject obj, String rawText) {
+                String mainTrans = obj.optString("translation", "").trim();
+                String keyVocab = obj.optString("key_vocab", "").trim();
+                JSONArray hintsArr = obj.optJSONArray("suggested_replies");
+                java.util.List<String> hints = new java.util.ArrayList<String>();
+                if (hintsArr != null) {
+                    for (int h = 0; h < hintsArr.length(); h++) {
+                        String hint = hintsArr.optString(h, "").trim();
+                        if (!hint.isEmpty()) hints.add(hint);
                     }
-                    tryTranslateAt(modelIdx + 1, sourceText, prompt);
                 }
-            });
-        } catch (Exception e) {
-            Log.e(TAG, "tryTranslateAt error: " + e.getMessage());
-            tryTranslateAt(modelIdx + 1, sourceText, prompt);
-        }
+                if (mainTrans.isEmpty()) {
+                    mainTrans = extractFieldByRegex(rawText, "translation");
+                }
+                if (keyVocab.isEmpty()) {
+                    keyVocab = extractFieldByRegex(rawText, "key_vocab");
+                }
+                if (mainTrans.isEmpty() && !rawText.isEmpty() && !rawText.startsWith("{")) {
+                    mainTrans = rawText;
+                }
+                if (!mainTrans.isEmpty()) {
+                    listener.onSubtitleData(sourceText, mainTrans, keyVocab, hints);
+                }
+            }
+
+            @Override
+            public void onError(String errorMessage) {
+                Log.w(TAG, "Translation error: " + errorMessage);
+            }
+        });
     }
 
     private static String extractFieldByRegex(String text, String field) {
