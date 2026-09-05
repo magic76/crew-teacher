@@ -272,7 +272,23 @@ public class LearningDataManager {
                 rec.takeawaysJson = obj.optString("takeawaysJson", "[]");
                 rec.cheer = obj.optString("cheer", "");
                 rec.fullTranscript = obj.optString("fullTranscript", "");
-                list.add(rec);
+
+                // Robust deduplication on load
+                boolean isDuplicate = false;
+                for (SessionRecord existing : list) {
+                    if (!rec.id.isEmpty() && rec.id.equals(existing.id)) {
+                        isDuplicate = true;
+                        break;
+                    }
+                    if (!rec.fullTranscript.isEmpty() && rec.fullTranscript.equals(existing.fullTranscript)
+                            && Math.abs(rec.timestamp - existing.timestamp) < 60000) {
+                        isDuplicate = true;
+                        break;
+                    }
+                }
+                if (!isDuplicate) {
+                    list.add(rec);
+                }
             }
         } catch (Exception ignored) {}
         return list;
@@ -281,7 +297,26 @@ public class LearningDataManager {
     public static synchronized void saveSessionRecord(Context context, SessionRecord record) {
         if (record == null) return;
         List<SessionRecord> list = getSessionHistory(context);
-        list.add(0, record); // newest first
+        int foundIdx = -1;
+        for (int i = 0; i < list.size(); i++) {
+            SessionRecord existing = list.get(i);
+            if (!record.id.isEmpty() && record.id.equals(existing.id)) {
+                foundIdx = i;
+                break;
+            }
+            if (!record.fullTranscript.isEmpty() && record.fullTranscript.equals(existing.fullTranscript)
+                    && Math.abs(record.timestamp - existing.timestamp) < 60000) {
+                foundIdx = i;
+                break;
+            }
+        }
+
+        if (foundIdx >= 0) {
+            list.set(foundIdx, record); // update in-place
+        } else {
+            list.add(0, record); // newest first
+        }
+
         if (list.size() > 50) {
             list = list.subList(0, 50); // keep last 50
         }
@@ -312,5 +347,9 @@ public class LearningDataManager {
             }
             getPrefs(context).edit().putString(KEY_SESSIONS, arr.toString()).apply();
         } catch (Exception ignored) {}
+    }
+
+    public static synchronized void clearSessionHistory(Context context) {
+        getPrefs(context).edit().putString(KEY_SESSIONS, "[]").apply();
     }
 }

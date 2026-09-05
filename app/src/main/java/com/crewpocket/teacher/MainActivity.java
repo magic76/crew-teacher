@@ -1433,6 +1433,33 @@ public class MainActivity extends Activity {
         title.setTypeface(Typeface.DEFAULT_BOLD);
         headRow.addView(title, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
 
+        final List<LearningDataManager.SessionRecord> history = LearningDataManager.getSessionHistory(this);
+
+        if (!history.isEmpty()) {
+            TextView clearBtn = new TextView(this);
+            clearBtn.setText(en ? "🗑️ Clear" : "🗑️ 清空");
+            clearBtn.setTextSize(12);
+            clearBtn.setTextColor(Color.parseColor("#F87171"));
+            clearBtn.setPadding(dp(8), dp(4), dp(8), dp(4));
+            clearBtn.setOnClickListener(new View.OnClickListener() {
+                @Override public void onClick(View v) {
+                    new AlertDialog.Builder(MainActivity.this)
+                            .setTitle(en ? "Clear Session History" : "清空歷史記錄")
+                            .setMessage(en ? "Are you sure you want to delete all past tutoring records?" : "確定要清除所有過往口語對話歷史記錄嗎？")
+                            .setPositiveButton(en ? "Clear" : "確認清空", new DialogInterface.OnClickListener() {
+                                @Override public void onClick(DialogInterface d, int which) {
+                                    LearningDataManager.clearSessionHistory(MainActivity.this);
+                                    dialog.dismiss();
+                                    showSessionHistoryDialog();
+                                }
+                            })
+                            .setNegativeButton(en ? "Cancel" : "取消", null)
+                            .show();
+                }
+            });
+            headRow.addView(clearBtn);
+        }
+
         TextView closeBtn = new TextView(this);
         closeBtn.setText("✕");
         closeBtn.setTextSize(18);
@@ -1443,8 +1470,6 @@ public class MainActivity extends Activity {
         });
         headRow.addView(closeBtn);
         container.addView(headRow);
-
-        final List<LearningDataManager.SessionRecord> history = LearningDataManager.getSessionHistory(this);
 
         TextView subtitle = new TextView(this);
         subtitle.setText(en ? ("Total " + history.size() + " completed tutoring sessions · Tap any card to review full report")

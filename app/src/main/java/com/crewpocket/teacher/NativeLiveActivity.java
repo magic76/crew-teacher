@@ -52,6 +52,7 @@ public class NativeLiveActivity extends Activity {
     private Button muteButton;
     private NativeGeminiLiveClient client;
     private long sessionStartTime = 0;
+    private boolean sessionEvaluated = false;
     private final Handler handler = new Handler();
 
     // ── 📖 Option 1: Word-by-Word Real-Time Color Feedback & Diagnostic Card ──
@@ -994,6 +995,7 @@ public class NativeLiveActivity extends Activity {
                 });
 
         sessionStartTime = System.currentTimeMillis();
+        sessionEvaluated = false;
         client.start();
     }
 
@@ -1008,7 +1010,8 @@ public class NativeLiveActivity extends Activity {
         callButton.setText(isShadowingMode ? "🎙️ 開始朗讀練習" : "🎙️ 開始口語對話");
         ((GradientDrawable) callButton.getBackground()).setColor(Color.parseColor("#2563EB"));
 
-        if (!isShadowingMode) {
+        if (!isShadowingMode && !sessionEvaluated) {
+            sessionEvaluated = true;
             final List<ChatTurn> turnsToEvaluate = new ArrayList<ChatTurn>(turnHistory);
             if (currentChatTurn != null && currentChatTurn.spoken.length() > 0 && !turnsToEvaluate.contains(currentChatTurn)) {
                 turnsToEvaluate.add(currentChatTurn);
