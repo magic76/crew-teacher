@@ -73,10 +73,16 @@ public class GeminiApiClient {
             return;
         }
 
-        final String prompt = "Translate spoken " + practiceLang + " to " + targetLang + ".\n"
-                + "Spoken: \"" + sourceText.replace("\"", "'") + "\"\n"
-                + "Return ONLY compact JSON:\n"
-                + "{\"t\":\"(fluent " + targetLang + " translation)\",\"v\":\"(1 key vocab with phonetic tip/meaning or empty)\",\"r\":[\"(sample reply 1)\",\"(sample reply 2)\"]}";
+        final String prompt = "You are a language tutor assistant.\n"
+                + "Spoken text in " + practiceLang + ": \"" + sourceText.replace("\"", "'") + "\"\n"
+                + "Student native language: " + targetLang + "\n"
+                + "Provide:\n"
+                + "1. 't': Fluent translation in " + targetLang + ".\n"
+                + "2. 'v': 1 key vocabulary in " + practiceLang + " with brief meaning in " + targetLang + ".\n"
+                + "3. 'r': 2 natural suggested reply options for the student to speak back to the tutor. "
+                + "CRITICAL: Each reply MUST be in " + practiceLang + " (tutor language), followed by brief " + targetLang + " meaning in parentheses. Example: 'Sentence in " + practiceLang + " (meaning in " + targetLang + ")'.\n\n"
+                + "Return ONLY valid compact JSON:\n"
+                + "{\"t\":\"...\",\"v\":\"...\",\"r\":[\"...\", \"...\"]}";
 
         tryGenerateFastAt(0, apiKey.trim(), prompt, mainHandler, new InternalCallback() {
             @Override
