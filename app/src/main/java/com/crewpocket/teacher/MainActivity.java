@@ -73,16 +73,16 @@ public class MainActivity extends Activity {
         scroll.addView(pageContent);
         root.addView(scroll, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
 
-        // 2. Bottom Navigation Tab Bar
+        // 2. Bottom Navigation Tab Bar (Modern Capsule Dock)
         bottomNav = new LinearLayout(this);
         bottomNav.setOrientation(LinearLayout.HORIZONTAL);
-        bottomNav.setGravity(Gravity.CENTER_VERTICAL);
-        bottomNav.setPadding(dp(12), dp(6), dp(12), dp(8));
+        bottomNav.setGravity(Gravity.CENTER);
+        bottomNav.setPadding(dp(14), dp(8), dp(14), dp(10));
         GradientDrawable navBg = new GradientDrawable();
-        navBg.setColor(Color.parseColor("#0B1120")); // Deep Navy
+        navBg.setColor(Color.parseColor("#090D16")); // Deep Slate / Black
         navBg.setStroke(dp(1), Color.parseColor("#1E293B"));
         bottomNav.setBackground(navBg);
-        root.addView(bottomNav, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(60)));
+        root.addView(bottomNav, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(64)));
 
         setContentView(root);
         renderCurrentPage();
@@ -119,32 +119,42 @@ public class MainActivity extends Activity {
 
     private LinearLayout buildTabItem(String icon, String label, final int tabIndex, boolean active) {
         LinearLayout tab = new LinearLayout(this);
-        tab.setOrientation(LinearLayout.VERTICAL);
+        tab.setOrientation(LinearLayout.HORIZONTAL);
         tab.setGravity(Gravity.CENTER);
-        tab.setPadding(0, dp(4), 0, dp(4));
+        tab.setPadding(dp(16), dp(10), dp(16), dp(10));
 
         GradientDrawable tBg = new GradientDrawable();
+        tBg.setCornerRadius(dp(14));
         if (active) {
             tBg.setColor(Color.parseColor("#1E293B"));
-            tBg.setCornerRadius(dp(12));
-            tBg.setStroke(dp(1), Color.parseColor("#38BDF8"));
+            tBg.setStroke(dp(1), Color.parseColor("#6366F1")); // Indigo Accent
         } else {
-            tBg.setColor(Color.TRANSPARENT);
+            tBg.setColor(Color.parseColor("#0F172A"));
+            tBg.setStroke(dp(1), Color.parseColor("#1E293B"));
         }
         tab.setBackground(tBg);
 
         TextView iconTv = new TextView(this);
         iconTv.setText(icon);
         iconTv.setTextSize(16);
+        iconTv.setPadding(0, 0, dp(8), 0);
         tab.addView(iconTv);
 
         TextView labelTv = new TextView(this);
         labelTv.setText(label);
-        labelTv.setTextSize(11);
+        labelTv.setTextSize(13);
         labelTv.setTextColor(active ? Color.parseColor("#38BDF8") : Color.parseColor("#94A3B8"));
-        labelTv.setTypeface(Typeface.DEFAULT_BOLD);
-        labelTv.setPadding(0, dp(2), 0, 0);
+        labelTv.setTypeface(active ? Typeface.DEFAULT_BOLD : Typeface.DEFAULT);
         tab.addView(labelTv);
+
+        if (active) {
+            TextView dot = new TextView(this);
+            dot.setText("●");
+            dot.setTextSize(8);
+            dot.setTextColor(Color.parseColor("#38BDF8"));
+            dot.setPadding(dp(6), 0, 0, 0);
+            tab.addView(dot);
+        }
 
         tab.setOnClickListener(new View.OnClickListener() {
             @Override public void onClick(View v) {
@@ -155,7 +165,7 @@ public class MainActivity extends Activity {
             }
         });
 
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
         lp.setMargins(dp(6), 0, dp(6), 0);
         tab.setLayoutParams(lp);
         return tab;
@@ -485,6 +495,36 @@ public class MainActivity extends Activity {
             @Override public void onClick(View v) { showTeachingModeDialog(); }
         }));
 
+        // Helpful tip card for Native language support
+        LinearLayout tipCard = new LinearLayout(this);
+        tipCard.setOrientation(LinearLayout.VERTICAL);
+        tipCard.setPadding(dp(14), dp(10), dp(14), dp(10));
+        GradientDrawable tipBg = new GradientDrawable();
+        tipBg.setColor(Color.parseColor("#064E3B"));
+        tipBg.setCornerRadius(dp(12));
+        tipBg.setStroke(dp(1), Color.parseColor("#059669"));
+        tipCard.setBackground(tipBg);
+        LinearLayout.LayoutParams tipLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        tipLp.setMargins(0, 0, 0, dp(10));
+        tipCard.setLayoutParams(tipLp);
+
+        TextView tipTitle = new TextView(this);
+        tipTitle.setText(en ? "💡 Pro Tip: Need Tutor to Explain in Your Language?" : "💡 實用小秘訣：想聽外師用母語/中文解釋？");
+        tipTitle.setTextSize(12);
+        tipTitle.setTextColor(Color.WHITE);
+        tipTitle.setTypeface(Typeface.DEFAULT_BOLD);
+        tipCard.addView(tipTitle);
+
+        TextView tipDesc = new TextView(this);
+        tipDesc.setText(en ? "In 'Bilingual & Native Support' or 'Beginner' mode, you can directly ask the tutor in your native language (e.g. '請用中文解釋' or '這是什麼意思？'), and the tutor will immediately explain the vocabulary & grammar in your native language!"
+                : "在「雙語母語輔助」或「零基礎引導」模式下，您可以隨時對外師說『請用中文解釋』或『這是什麼意思？』，外師會立即切換母語為您詳細解析！");
+        tipDesc.setTextSize(11);
+        tipDesc.setTextColor(Color.parseColor("#A7F3D0"));
+        tipDesc.setLineSpacing(dp(2), 1.15f);
+        tipDesc.setPadding(0, dp(2), 0, 0);
+        tipCard.addView(tipDesc);
+        pageContent.addView(tipCard);
+
         // Section 3: Advanced System & API Key
         TextView advSec = new TextView(this);
         advSec.setText(en ? "🔑 Advanced & API Key" : "🔑 進階配置與 API Key");
@@ -519,39 +559,37 @@ public class MainActivity extends Activity {
     private LinearLayout makePodItem(String icon, String title, String tag, int color, View.OnClickListener onClick) {
         LinearLayout item = new LinearLayout(this);
         item.setOrientation(LinearLayout.VERTICAL);
-        item.setGravity(Gravity.CENTER);
-        item.setPadding(dp(8), dp(10), dp(8), dp(10));
+        item.setPadding(dp(14), dp(12), dp(14), dp(12));
         GradientDrawable bg = new GradientDrawable();
-        bg.setColor(Color.parseColor("#1E293B"));
-        bg.setCornerRadius(dp(12));
-        bg.setStroke(dp(1), Color.argb(100, Color.red(color), Color.green(color), Color.blue(color)));
+        bg.setColor(Color.parseColor("#111827"));
+        bg.setCornerRadius(dp(14));
+        bg.setStroke(dp(1), Color.parseColor("#1F2937"));
         item.setBackground(bg);
-        item.setClickable(true);
-        item.setFocusable(true);
 
-        TextView iconV = new TextView(this);
-        iconV.setText(icon);
-        iconV.setTextSize(16);
-        item.addView(iconV);
+        LinearLayout topRow = new LinearLayout(this);
+        topRow.setOrientation(LinearLayout.HORIZONTAL);
+        topRow.setGravity(Gravity.CENTER_VERTICAL);
 
-        TextView titleV = new TextView(this);
-        titleV.setText(title);
-        titleV.setTextSize(12);
-        titleV.setTextColor(Color.WHITE);
-        titleV.setTypeface(Typeface.DEFAULT_BOLD);
-        titleV.setGravity(Gravity.CENTER);
-        titleV.setSingleLine(true);
-        titleV.setEllipsize(TextUtils.TruncateAt.END);
-        titleV.setPadding(0, dp(3), 0, 0);
-        item.addView(titleV);
+        TextView iconTv = new TextView(this);
+        iconTv.setText(icon);
+        iconTv.setTextSize(18);
+        topRow.addView(iconTv);
 
-        TextView tagV = new TextView(this);
-        tagV.setText(tag);
-        tagV.setTextSize(10);
-        tagV.setTextColor(color);
-        tagV.setGravity(Gravity.CENTER);
-        tagV.setPadding(0, dp(2), 0, 0);
-        item.addView(tagV);
+        TextView tagTv = new TextView(this);
+        tagTv.setText(tag);
+        tagTv.setTextSize(10);
+        tagTv.setTextColor(color);
+        tagTv.setGravity(Gravity.END);
+        topRow.addView(tagTv, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        item.addView(topRow);
+
+        TextView titleTv = new TextView(this);
+        titleTv.setText(title);
+        titleTv.setTextSize(12);
+        titleTv.setTextColor(CrewTheme.TEXT_PRIMARY);
+        titleTv.setTypeface(Typeface.DEFAULT_BOLD);
+        titleTv.setPadding(0, dp(6), 0, 0);
+        item.addView(titleTv);
 
         item.setOnClickListener(onClick);
         return item;
@@ -563,16 +601,14 @@ public class MainActivity extends Activity {
         card.setGravity(Gravity.CENTER_VERTICAL);
         card.setPadding(dp(14), dp(12), dp(14), dp(12));
         GradientDrawable bg = new GradientDrawable();
-        bg.setColor(Color.parseColor("#1E293B"));
+        bg.setColor(Color.parseColor("#111827"));
         bg.setCornerRadius(dp(14));
-        bg.setStroke(dp(1), Color.parseColor("#334155"));
+        bg.setStroke(dp(1), Color.parseColor("#1F2937"));
         card.setBackground(bg);
 
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        lp.setMargins(0, 0, 0, dp(10));
-        card.setLayoutParams(lp);
-        card.setClickable(true);
-        card.setFocusable(true);
+        LinearLayout.LayoutParams clp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        clp.setMargins(0, 0, 0, dp(10));
+        card.setLayoutParams(clp);
 
         TextView iconTv = new TextView(this);
         iconTv.setText(icon);
@@ -593,7 +629,7 @@ public class MainActivity extends Activity {
         TextView sumTv = new TextView(this);
         sumTv.setText(summary);
         sumTv.setTextSize(11);
-        sumTv.setTextColor(accentColor);
+        sumTv.setTextColor(Color.parseColor("#94A3B8"));
         sumTv.setPadding(0, dp(2), 0, 0);
         textCol.addView(sumTv);
 
@@ -601,8 +637,9 @@ public class MainActivity extends Activity {
 
         TextView arrow = new TextView(this);
         arrow.setText("›");
-        arrow.setTextSize(18);
+        arrow.setTextSize(20);
         arrow.setTextColor(Color.parseColor("#64748B"));
+        arrow.setPadding(dp(8), 0, 0, 0);
         card.addView(arrow);
 
         card.setOnClickListener(onClick);
@@ -659,26 +696,35 @@ public class MainActivity extends Activity {
     private void showTutorLanguageDialog() {
         final boolean en = I18n.isEnglish(this);
         final String[] items = {
-                "🇺🇸 English (英語)", "🇯🇵 日本語 (Japanese)", "🇰🇷 한국어 (Korean)",
-                "🇪🇸 Español (Spanish)", "🇫🇷 Français (French)", "🇩🇪 Deutsch (German)",
-                "🇨🇳 普通話 / 國語 (Mandarin Chinese)", "🇭🇰 粵語 (Cantonese)",
-                "🇹🇼 閩南語 / 台語 (Taiwanese Hokkien)", "🇻🇳 Tiếng Việt (Vietnamese)"
+                "🇺🇸 English (英語)",
+                "🇯🇵 日本語 (Japanese)",
+                "🇰🇷 한국어 (Korean)",
+                "🇪🇸 Español (Spanish)",
+                "🇫🇷 Français (French)",
+                "🇩🇪 Deutsch (German)",
+                "🇮🇹 Italiano (Italian)",
+                "🇻🇳 Tiếng Việt (Vietnamese)",
+                "🇹🇭 ภาษาไทย (Thai)",
+                "🇨🇳 中文 (Mandarin Chinese)"
         };
-        final String[] values = {"en", "ja", "ko", "es", "fr", "de", "zh", "yue", "nan", "vi"};
+        final String[] values = {"en", "ja", "ko", "es", "fr", "de", "it", "vi", "th", "zh"};
         String current = AppConfig.getTutorLanguage(this);
         int selected = 0;
         for (int i = 0; i < values.length; i++) {
-            if (values[i].equalsIgnoreCase(current)) { selected = i; break; }
+            if (values[i].equalsIgnoreCase(current)) {
+                selected = i;
+                break;
+            }
         }
 
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        builder.setTitle(en ? "🌐 Choose Target Practice Language" : "🌐 選擇學習目標外語");
+        builder.setTitle(en ? "🌍 Select Target Language to Practice" : "🌍 選擇想要練習的外語目標");
         builder.setSingleChoiceItems(items, selected, new DialogInterface.OnClickListener() {
             @Override public void onClick(DialogInterface dialog, int which) {
                 AppConfig.setTutorLanguage(MainActivity.this, values[which]);
                 dialog.dismiss();
                 renderCurrentPage();
-                Toast.makeText(MainActivity.this, (en ? "Target language set to: " : "學習目標外語已設定為：") + items[which], Toast.LENGTH_SHORT).show();
+                Toast.makeText(MainActivity.this, en ? "Target language updated" : "已更新練習語言", Toast.LENGTH_SHORT).show();
             }
         });
         builder.show();
@@ -687,28 +733,34 @@ public class MainActivity extends Activity {
     private void showStudentLanguageDialog() {
         final boolean en = I18n.isEnglish(this);
         final String[] items = {
-                "🇹🇼 繁體中文 (Traditional Chinese - Taiwan)",
+                "🇹🇼 繁體中文 (Traditional Chinese)",
                 "🇨🇳 簡體中文 (Simplified Chinese)",
-                "🇺🇸 English", "🇯🇵 日本語 (Japanese)", "🇰🇷 한국어 (Korean)",
-                "🇻🇳 Tiếng Việt (Vietnamese)", "🇮🇩 Bahasa Indonesia",
-                "🇪🇸 Español (Spanish)", "🇫🇷 Français (French)", "🇩🇪 Deutsch (German)",
-                "🇭🇰 粵語 (Cantonese)", "🇹🇼 閩南語 / 台語 (Taiwanese Hokkien)"
+                "🇺🇸 English (英語)",
+                "🇯🇵 日本語 (Japanese)",
+                "🇰🇷 한국어 (Korean)",
+                "🇻🇳 Tiếng Việt (Vietnamese)",
+                "🇮🇩 Bahasa Indonesia (Indonesian)",
+                "🇪🇸 Español (Spanish)",
+                "🇹🇭 ภาษาไทย (Thai)"
         };
-        final String[] values = {"zh-TW", "zh-CN", "en", "ja", "ko", "vi", "id", "es", "fr", "de", "yue", "nan"};
+        final String[] values = {"zh-TW", "zh-CN", "en", "ja", "ko", "vi", "id", "es", "th"};
         String current = AppConfig.getStudentLanguage(this);
         int selected = 0;
         for (int i = 0; i < values.length; i++) {
-            if (values[i].equalsIgnoreCase(current)) { selected = i; break; }
+            if (values[i].equalsIgnoreCase(current)) {
+                selected = i;
+                break;
+            }
         }
 
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        builder.setTitle(en ? "🗣️ Choose Student Native Language" : "🗣️ 選擇學生母語（對照翻譯語言）");
+        builder.setTitle(en ? "🗣️ Select Your Native Language" : "🗣️ 選擇學員母語 (雙語翻譯與講解)");
         builder.setSingleChoiceItems(items, selected, new DialogInterface.OnClickListener() {
             @Override public void onClick(DialogInterface dialog, int which) {
                 AppConfig.setStudentLanguage(MainActivity.this, values[which]);
                 dialog.dismiss();
                 renderCurrentPage();
-                Toast.makeText(MainActivity.this, (en ? "Student native language set to: " : "學生母語已設定為：") + items[which], Toast.LENGTH_SHORT).show();
+                Toast.makeText(MainActivity.this, en ? "Native language updated" : "已更新學員母語", Toast.LENGTH_SHORT).show();
             }
         });
         builder.show();
@@ -717,24 +769,35 @@ public class MainActivity extends Activity {
     private void showPersonaDialog() {
         final boolean en = I18n.isEnglish(this);
         final String[] items = {
-                en ? "☕ Daily Life & Hobbies (Casual chats, food, weekend plans)" : "☕ 日常閒聊 (Daily Life: 興趣、生活、週末規劃)",
-                en ? "✈️ Travel & Dining (Airport, hotel check-in, ordering, asking directions)" : "✈️ 出國旅遊 (Travel & Dining: 機場、飯店、點餐、問路)",
-                en ? "💼 Workplace & Business (Meetings, presentations, negotiations)" : "💼 職場商務 (Business: 會議匯報、專案討論、商務談判)",
-                en ? "👔 Job Interview Simulation (STAR method, career, strengths/weaknesses)" : "👔 求職面試 (Job Interview: STAR 法則、工作經驗、面試應對)",
-                en ? "🎯 Exam Prep Simulation (IELTS Speaking Part 2/3, TOEFL, TOEIC)" : "🎯 口說備考 (Exam Prep: 雅思 IELTS / 托福 TOEFL / 多益)",
-                en ? "🛍️ Shopping & Returns (Bargaining, sizes, tax refund, returns)" : "🛍️ 購物退稅 (Shopping: 殺價、挑尺寸、退稅、商品換貨)",
-                en ? "🏥 Doctor Visit & Medical (Describing symptoms, pharmacy, healthcare)" : "🏥 醫院看診 (Medical: 描述身體症狀、藥局拿藥、看診諮詢)",
-                en ? "🏠 Renting & Housing (Apartment hunting, lease terms, landlord repairs)" : "🏠 租屋看房 (Housing: 預約看房、租約討論、水電修繕)",
-                en ? "💬 Dating & Social Mingling (Icebreakers, casual banter, hobbies, parties)" : "💬 社交破冰 (Dating & Social: 社交破冰、約會聊天、認識新朋友)",
-                en ? "🤖 Tech & AI Trends (Software development, LLMs, future tech trends)" : "🤖 科技創新 (Tech & AI: 軟體開發、人工智慧、科技創新)"
+                en ? "☕ Daily Life & Casual Banter" : "☕ 日常生活與閒聊 (興趣、週末計畫、時事)",
+                en ? "✈️ Travel Scenarios (Airport, Hotel, Restaurant)" : "✈️ 出國旅遊場景 (機場、海關、飯店、點餐、問路)",
+                en ? "💼 Business & Workplace Communication" : "💼 職場商務溝通 (專案匯報、客戶談判、跨國協作)",
+                en ? "👔 Job Interview Simulation" : "👔 求職英文面試 (STAR 結構化提問、經歷深挖)",
+                en ? "🎯 Standardized Speaking Exam (IELTS / TOEFL)" : "🎯 檢定口說備考 (雅思 Part 1/2/3、托福模擬)",
+                en ? "🛍️ Shopping & Bargaining" : "🛍️ 購物與退稅 (殺價、問尺寸、退換貨)",
+                en ? "🏥 Medical & Clinic Consultation" : "🏥 醫院看診諮詢 (描述症狀、藥局諮詢)",
+                en ? "🏠 Apartment Hunting & Tenancy" : "🏠 租屋看房與生活 (問租金、室友公約、修繕)",
+                en ? "💬 Dating & Social Mingling" : "💬 社交破冰與約會 (咖啡廳偶遇、興趣交流)",
+                en ? "🤖 Tech & AI Innovations" : "🤖 科技創新與程式 (架構討論、生成式 AI)"
         };
         final String[] values = {"daily", "travel", "business", "interview", "exam", "shopping", "medical", "housing", "dating", "tech"};
+        String current = AppConfig.getTutorPersona(this);
+        int selected = 0;
+        for (int i = 0; i < values.length; i++) {
+            if (values[i].equalsIgnoreCase(current)) {
+                selected = i;
+                break;
+            }
+        }
+
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        builder.setTitle(en ? "🎭 Choose Conversation Scenario" : "🎭 選擇實戰情境劇本");
-        builder.setItems(items, new DialogInterface.OnClickListener() {
+        builder.setTitle(en ? "🎭 Choose Tutoring Scenario" : "🎭 選擇口說練習情境劇本");
+        builder.setSingleChoiceItems(items, selected, new DialogInterface.OnClickListener() {
             @Override public void onClick(DialogInterface dialog, int which) {
                 AppConfig.setTutorPersona(MainActivity.this, values[which]);
+                dialog.dismiss();
                 renderCurrentPage();
+                Toast.makeText(MainActivity.this, en ? "Scenario updated" : "已切換情境劇本", Toast.LENGTH_SHORT).show();
             }
         });
         builder.show();
@@ -743,14 +806,18 @@ public class MainActivity extends Activity {
     private void showTeachingModeDialog() {
         final boolean en = I18n.isEnglish(this);
         final String[] items = {
-                en ? "✨ Bilingual Scaffolding (Target Language + Instant Native Translation, Recommended)" : "✨ 雙語對照模式 (外語說完立即附帶中文口譯，推薦)",
-                en ? "📖 Reading & Pronunciation Coach (Read aloud & AI actively interrupts to correct pronunciation)" : "📖 朗讀糾音教練 (邊朗讀邊糾錯，發音/重音有誤時 AI 即時插話糾正)",
-                en ? "🌱 Beginner Coaching (One phrase at a time + Repeat after tutor with native guidance)" : "🌱 零基礎引導模式 (一句母語說明 + 一句短句示範帶讀)",
-                en ? "🌊 Full Immersion (100% Target Language, for intermediate/advanced learners)" : "🌊 全外語沉浸模式 (100% 全外語對談，適合進階練習)"
+                en ? "✨ Bilingual & Native Support (Tutor uses native explanations when requested, Recommended)"
+                   : "✨ 雙語母語輔助 (外師主要說外語，可隨時用母語解釋詞彙與文法 · 推薦)",
+                en ? "🌱 Beginner Step-by-Step (Tutor patiently explains in native language + models phrase by phrase)"
+                   : "🌱 零基礎手把手 (外師以母語為主詳細講解，逐句示範帶讀)",
+                en ? "🌊 100% Full Immersion (Tutor speaks ONLY target language, no native language in audio)"
+                   : "🌊 100% 全外語沉浸 (外師語音嚴格僅說外語，絕不使用中文)",
+                en ? "📖 Spartan Pronunciation Coach (Read aloud & instant phonetic critique on stress/liaison)"
+                   : "📖 斯巴達朗讀糾音 (嚴格糾正發音、重音與連音，即時打斷示範跟讀)"
         };
-        final String[] values = {"bilingual", "shadowing", "beginner", "immersion"};
+        final String[] values = {"bilingual", "beginner", "immersion", "shadowing"};
         String current = AppConfig.getTeachingMode(this);
-        int selected = "shadowing".equals(current) ? 1 : ("beginner".equals(current) ? 2 : ("immersion".equals(current) ? 3 : 0));
+        int selected = "beginner".equals(current) ? 1 : ("immersion".equals(current) ? 2 : ("shadowing".equals(current) ? 3 : 0));
 
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         builder.setTitle(en ? "💡 Choose Teaching Method & Level" : "💡 選擇教學引導模式 (難易度)");
@@ -852,10 +919,10 @@ public class MainActivity extends Activity {
     }
 
     private String getTeachingModeSummary(String mode, boolean en) {
-        if ("shadowing".equalsIgnoreCase(mode)) return en ? "📖 Reading & Pronunciation Coach" : "📖 朗讀糾音教練模式";
-        if ("beginner".equalsIgnoreCase(mode)) return en ? "🌱 Beginner Step-by-Step" : "🌱 零基礎引導模式";
-        if ("immersion".equalsIgnoreCase(mode)) return en ? "🌊 100% Full Immersion" : "🌊 全外語沉浸模式";
-        return en ? "✨ Bilingual Scaffolding (Recommended)" : "✨ 雙語對照模式（推薦）";
+        if ("shadowing".equalsIgnoreCase(mode)) return en ? "📖 Reading & Pronunciation Coach" : "📖 斯巴達朗讀糾音";
+        if ("beginner".equalsIgnoreCase(mode)) return en ? "🌱 Beginner Step-by-Step (Native Explained)" : "🌱 零基礎手把手 (母語講解)";
+        if ("immersion".equalsIgnoreCase(mode)) return en ? "🌊 100% Full Immersion" : "🌊 100% 全外語沉浸 (不講中文)";
+        return en ? "✨ Bilingual & Native Support (Recommended)" : "✨ 雙語母語輔助 (外師可中文解說 · 推薦)";
     }
 
     private void refreshStatus() {
