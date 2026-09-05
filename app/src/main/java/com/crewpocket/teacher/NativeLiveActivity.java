@@ -1266,7 +1266,42 @@ public class NativeLiveActivity extends Activity {
         // Spoken content
         TextView spokenTv = new TextView(this);
         String spokenStr = turn.spoken.toString().trim();
-        if (spokenStr.isEmpty() && isAi && isLiveSpeaking) {
+        if (!isAi && !spokenStr.isEmpty()) {
+            // Interactive Word-by-Word Phonetic IPA Spans for Student's speech
+            SpannableStringBuilder userSsb = new SpannableStringBuilder();
+            String[] uWords = spokenStr.split("\\s+");
+            for (int w = 0; w < uWords.length; w++) {
+                final String rawW = uWords[w];
+                final String cleanW = rawW.replaceAll("[^a-zA-Z0-9]", "").toLowerCase();
+                int start = userSsb.length();
+                userSsb.append(rawW);
+                int end = userSsb.length();
+
+                final boolean hasPhoneticTip = IPA_MAP.containsKey(cleanW);
+                if (hasPhoneticTip) {
+                    userSsb.setSpan(new ForegroundColorSpan(Color.parseColor("#38BDF8")), start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                    userSsb.setSpan(new StyleSpan(Typeface.BOLD), start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                }
+
+                userSsb.setSpan(new ClickableSpan() {
+                    @Override
+                    public void onClick(View widget) {
+                        speakWord(cleanW.isEmpty() ? rawW : cleanW);
+                        String ipa = getIpaForWord(cleanW.isEmpty() ? rawW : cleanW);
+                        String tip = getTipForWord(cleanW.isEmpty() ? rawW : cleanW);
+                        Toast.makeText(NativeLiveActivity.this, "🗣️ " + rawW + " " + ipa + "\n💡 " + tip, Toast.LENGTH_SHORT).show();
+                    }
+                    @Override
+                    public void updateDrawState(TextPaint ds) {
+                        ds.setUnderlineText(hasPhoneticTip);
+                    }
+                }, start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+
+                if (w < uWords.length - 1) userSsb.append(" ");
+            }
+            spokenTv.setText(userSsb);
+            spokenTv.setMovementMethod(LinkMovementMethod.getInstance());
+        } else if (spokenStr.isEmpty() && isAi && isLiveSpeaking) {
             spokenTv.setText("🎙️ ...");
         } else {
             spokenTv.setText(spokenStr);
@@ -1278,6 +1313,15 @@ public class NativeLiveActivity extends Activity {
         LinearLayout.LayoutParams sLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         sLp.setMargins(0, dp(4), 0, 0);
         card.addView(spokenTv, sLp);
+
+        if (!isAi && !spokenStr.isEmpty()) {
+            TextView tapHint = new TextView(this);
+            tapHint.setText(en ? "💡 Tap any word to listen to standard IPA pronunciation" : "💡 點擊上方任一單字，可聽母語發音與音標小抄");
+            tapHint.setTextSize(10);
+            tapHint.setTextColor(Color.parseColor("#94A3B8"));
+            tapHint.setPadding(0, dp(3), 0, 0);
+            card.addView(tapHint);
+        }
 
         // AI Scaffolding Sub-card (Translation + Vocab + Hints)
         if (isAi && turn.translationRevealed && (!turn.translation.isEmpty() || !turn.keyVocab.isEmpty() || !turn.hints.isEmpty())) {
@@ -1312,22 +1356,63 @@ public class NativeLiveActivity extends Activity {
                 subCard.addView(tText, ttLp);
             }
 
-            // 2. Key Vocab
+            // 2. Key Vocab & Pronunciation Notes
             if (!turn.keyVocab.isEmpty()) {
+                LinearLayout vHeadRow = new LinearLayout(this);
+                vHeadRow.setOrientation(LinearLayout.HORIZONTAL);
+                vHeadRow.setGravity(Gravity.CENTER_VERTICAL);
+                LinearLayout.LayoutParams vhLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                vhLp.setMargins(0, dp(8), 0, 0);
+                vHeadRow.setLayoutParams(vhLp);
+
                 TextView vTitle = new TextView(this);
-                vTitle.setText(en ? "💡 Key Vocabulary & Notes" : "💡 重點單字與句型");
+                vTitle.setText(en ? "💡 Pronunciation & Vocab Focus" : "💡 發音與重點單字解析");
                 vTitle.setTextSize(11);
                 vTitle.setTextColor(Color.parseColor("#FBBF24"));
                 vTitle.setTypeface(Typeface.DEFAULT_BOLD);
-                LinearLayout.LayoutParams vtLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-                vtLp.setMargins(0, dp(8), 0, 0);
-                subCard.addView(vTitle, vtLp);
+                vHeadRow.addView(vTitle, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+
+                final String vocabText = turn.keyVocab;
+                Button vPlayBtn = new Button(this);
+                vPlayBtn.setText("🔊");
+                vPlayBtn.setTextSize(10);
+                vPlayBtn.setTextColor(Color.WHITE);
+                GradientDrawable vpBg = new GradientDrawable();
+                vpBg.setColor(Color.parseColor("#4F46E5"));
+                vpBg.setCornerRadius(dp(6));
+                vPlayBtn.setBackground(vpBg);
+                vPlayBtn.setOnClickListener(new View.OnClickListener() {
+                    @Override public void onClick(View v) {
+                        String firstWord = vocabText.contains("(") ? vocabText.substring(0, vocabText.indexOf("(")).trim() : (vocabText.contains("-") ? vocabText.substring(0, vocabText.indexOf("-")).trim() : vocabText);
+                        speakWord(firstWord);
+                    }
+                });
+                vHeadRow.addView(vPlayBtn, new LinearLayout.LayoutParams(dp(40), dp(26)));
+
+                final boolean isVocabStarred = LearningDataManager.isStarred(this, vocabText);
+                final Button vStarBtn = new Button(this);
+                vStarBtn.setText(isVocabStarred ? "★" : "☆");
+                vStarBtn.setTextSize(12);
+                vStarBtn.setTextColor(isVocabStarred ? Color.parseColor("#FBBF24") : Color.parseColor("#94A3B8"));
+                vStarBtn.setBackground(null);
+                vStarBtn.setPadding(0, 0, 0, 0);
+                vStarBtn.setOnClickListener(new View.OnClickListener() {
+                    @Override public void onClick(View v) {
+                        boolean nowStarred = LearningDataManager.toggleStarItem(NativeLiveActivity.this, vocabText, "", "vocab", "");
+                        vStarBtn.setText(nowStarred ? "★" : "☆");
+                        vStarBtn.setTextColor(nowStarred ? Color.parseColor("#FBBF24") : Color.parseColor("#94A3B8"));
+                        Toast.makeText(NativeLiveActivity.this, nowStarred ? (en ? "⭐ Saved to Phrasebook" : "⭐ 已收藏至生詞金句本") : (en ? "Removed" : "已取消收藏"), Toast.LENGTH_SHORT).show();
+                    }
+                });
+                vHeadRow.addView(vStarBtn, new LinearLayout.LayoutParams(dp(34), dp(26)));
+                subCard.addView(vHeadRow);
 
                 TextView vText = new TextView(this);
                 vText.setText(turn.keyVocab);
                 vText.setTextSize(12);
                 vText.setTextColor(Color.parseColor("#FEF08A"));
                 vText.setLineSpacing(dp(2), 1.2f);
+                vText.setPadding(0, dp(2), 0, 0);
                 subCard.addView(vText);
             }
 

@@ -484,11 +484,18 @@ public class NativeGeminiLiveClient {
                     + "4. When the student says goodbye or wants to exit, say farewell in " + langName + " and call 'end_voice_session'.";
         }
 
+        String recastProtocol = "\n\n【NATURAL RECAST & PRONUNCIATION MODELING PROTOCOL】:\n"
+                + "1. GENTLE RECAST: If the student speaks with grammar flaws, unnatural collocations, or mispronounced/stumbled words, seamlessly RECAST and model the authentic native phrasing and pronunciation naturally in your conversational reply before moving the topic forward.\n"
+                + "   Example: If the student says 'I very like comfortable island', naturally echo: 'Oh, you really loved that comfortable [ˈkʌmftəbl] island [ˈaɪlənd]? What made it so special?'\n"
+                + "2. Maintain natural, engaging dialogue flow while giving crystal-clear phonetic modeling.\n"
+                + "3. 100% PURE " + langName + " IN AUDIO: Never speak " + nativeLang + " words in audio.";
+
         String baseInstruction = "You are 'Crew Teacher', an insightful, precise, and rigorous 1-on-1 language coach. "
                 + "Your mission is to help the user master authentic native " + langName + " with accurate pronunciation, rhythm, and natural expressions.\n"
                 + "Topic / Scenario: " + personaDetail + "\n\n"
                 + modeInstruction + "\n\n"
-                + rules;
+                + rules
+                + recastProtocol;
 
         if (!customPrompt.isEmpty()) {
             baseInstruction = "【User Custom Tutor Prompt】\n" + customPrompt + "\n\n" + baseInstruction;
@@ -510,13 +517,13 @@ public class NativeGeminiLiveClient {
         if (apiKey == null || apiKey.isEmpty() || sourceText.isEmpty()) return;
         String targetLang = AppConfig.getStudentLanguageDisplayName(context);
         String practiceLang = getLanguageDisplayName(tutorLang);
-        final String prompt = "You are an expert language tutor assistant.\n"
+        final String prompt = "You are an expert oral language tutor assistant.\n"
                 + "Spoken sentence in " + practiceLang + ":\n\"" + sourceText + "\"\n\n"
                 + "Student native language: " + targetLang + "\n\n"
                 + "Return a strictly valid JSON object with EXACTLY these keys:\n"
                 + "{\n"
                 + "  \"translation\": \"(fluent translation in " + targetLang + ")\",\n"
-                + "  \"key_vocab\": \"(optional 1-2 key words or grammar points with explanation in " + targetLang + ", or empty)\",\n"
+                + "  \"key_vocab\": \"(1-2 key vocabulary words with phonetic/pronunciation tips or grammar notes in " + targetLang + ", e.g. 'comfortable (/ˈkʌmftəbl/ 重音在第一音節) - 舒適的', or empty)\",\n"
                 + "  \"suggested_replies\": [\n"
                 + "    \"(Sample reply 1 in " + practiceLang + ") ((translation in " + targetLang + "))\",\n"
                 + "    \"(Sample reply 2 in " + practiceLang + ") ((translation in " + targetLang + "))\"\n"
