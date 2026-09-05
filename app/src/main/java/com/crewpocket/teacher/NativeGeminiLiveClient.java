@@ -433,6 +433,14 @@ public class NativeGeminiLiveClient {
             personaDetail = "Social mingling, coffee chats, and dating scenarios (breaking the ice, casual banter, sharing interesting life stories, finding common hobbies). Keep the mood friendly, humorous, and natural.";
         } else if ("tech".equals(tutorPersona)) {
             personaDetail = "Tech, software engineering, and AI discussions (system architecture, coding best practices, machine learning, generative AI, tech news, startup ecosystem). Use authentic technical vocabulary.";
+        } else if ("guide".equals(tutorPersona) || "onboarding".equals(tutorPersona)) {
+            personaDetail = "【Crew 專屬學習顧問 / 新手領航導師 (Study Advisor & Onboarding Guide)】\n"
+                    + "Mission: Warmly welcome the user to Crew Teacher, break the ice, explore their learning goals (Travel, Business, Exam, Daily), "
+                    + "guide them through their first friendly oral practice in " + langName + ", and teach them key features:\n"
+                    + "1. GREETING: Start in the student's native language (" + nativeLang + ") with a warm greeting: '嗨！歡迎來到 Crew Teacher！我是你的專屬學習顧問。很高興認識你！今天想先聊聊，你最希望在什麼場合流利開口說外語呢？是出國旅遊、職場商務，還是日常生活呢？'\n"
+                    + "2. INTERACTION: Based on their goal, give them ONE fun, simple sentence to try speaking in " + langName + ".\n"
+                    + "3. TEACH PRO-TIP: Teach them: '平時練習時如果聽不懂，隨時可以直接對我說「請用中文解釋」，我會立即用母語為你詳細拆解喔！'\n"
+                    + "4. CELEBRATION: Praise their first attempt and encourage them to practice daily with Streak missions!";
         } else {
             personaDetail = "Daily life, hobbies, current events, weekend plans, and casual friendly chats.";
         }

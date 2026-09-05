@@ -80,6 +80,10 @@ public class NativeLiveActivity extends Activity {
     private TextView missionHudTitle;
     private final List<TextView> missionCheckBoxes = new ArrayList<TextView>();
 
+    // ── 🧭 Option: AI Onboarding & Guide Tutor Mode ──
+    private boolean isOnboardingMode = false;
+    private String customPersonaExtra = null;
+
     private int dp(float val) {
         return CrewTheme.dp(this, val);
     }
@@ -100,15 +104,24 @@ public class NativeLiveActivity extends Activity {
         fullReadingText = AppConfig.getReadingText(this);
 
         Intent intent = getIntent();
-        if (intent != null && intent.hasExtra("EXTRA_LESSON_ID")) {
-            lessonId = intent.getStringExtra("EXTRA_LESSON_ID");
-            currentLesson = CourseManager.getLessonById(lessonId);
-            if (currentLesson != null) {
-                isLessonMode = true;
-                isShadowingMode = false; // Lesson mode is structured interactive roleplay conversation, not shadowing
-                for (CourseModel.Mission m : currentLesson.missions) {
-                    m.achieved = false;
+        if (intent != null) {
+            if (intent.hasExtra("EXTRA_LESSON_ID")) {
+                lessonId = intent.getStringExtra("EXTRA_LESSON_ID");
+                currentLesson = CourseManager.getLessonById(lessonId);
+                if (currentLesson != null) {
+                    isLessonMode = true;
+                    isShadowingMode = false; // Lesson mode is structured interactive roleplay conversation, not shadowing
+                    for (CourseModel.Mission m : currentLesson.missions) {
+                        m.achieved = false;
+                    }
                 }
+            }
+            if (intent.getBooleanExtra("EXTRA_ONBOARDING_MODE", false)) {
+                isOnboardingMode = true;
+                isShadowingMode = false;
+            }
+            if (intent.hasExtra("EXTRA_TUTOR_PERSONA")) {
+                customPersonaExtra = intent.getStringExtra("EXTRA_TUTOR_PERSONA");
             }
         }
 
@@ -139,6 +152,8 @@ public class NativeLiveActivity extends Activity {
         TextView title = new TextView(this);
         if (isLessonMode && currentLesson != null) {
             title.setText("🎯 " + currentLesson.getTitle(en));
+        } else if (isOnboardingMode) {
+            title.setText(en ? "🧭 AI Onboarding Guide" : "🧭 AI 新手領航與學習顧問");
         } else {
             title.setText(isShadowingMode
                     ? (en ? "📖 Reading & Pronunciation Coach" : "📖 朗讀高亮與發音診斷")
@@ -591,7 +606,15 @@ public class NativeLiveActivity extends Activity {
         root.addView(controls);
         setContentView(root);
 
-        if (isShadowingMode && (fullReadingText == null || fullReadingText.trim().isEmpty())) {
+        if (isOnboardingMode) {
+            handler.postDelayed(new Runnable() {
+                @Override public void run() {
+                    if (!isFinishing() && client == null) {
+                        startClient();
+                    }
+                }
+            }, 300);
+        } else if (isShadowingMode && (fullReadingText == null || fullReadingText.trim().isEmpty())) {
             if (!AppConfig.getGeminiApiKey(this).isEmpty()) {
                 triggerAiNewPassage();
             }
@@ -1321,8 +1344,16 @@ public class NativeLiveActivity extends Activity {
 
         String voice = AppConfig.getVoiceName(this);
         String lang = AppConfig.getTutorLanguage(this);
-        String persona = isLessonMode && currentLesson != null && currentLesson.scenario != null
-                ? currentLesson.scenario : AppConfig.getTutorPersona(this);
+        String persona;
+        if (customPersonaExtra != null && !customPersonaExtra.isEmpty()) {
+            persona = customPersonaExtra;
+        } else if (isOnboardingMode) {
+            persona = "guide";
+        } else if (isLessonMode && currentLesson != null && currentLesson.scenario != null) {
+            persona = currentLesson.scenario;
+        } else {
+            persona = AppConfig.getTutorPersona(this);
+        }
         String noiseMode = AppConfig.getNoiseMode(this);
         int noiseSuppression = AppConfig.getNoiseSuppression(this);
         String liveTone = AppConfig.getLiveTone(this);

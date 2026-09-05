@@ -117,6 +117,19 @@ public class MainActivity extends Activity {
     protected void onResume() {
         super.onResume();
         refreshStatus();
+        if (AppConfig.getGeminiApiKey(this).isEmpty() && !isFinishing()) {
+            pageContent.post(new Runnable() {
+                @Override public void run() {
+                    if (AppConfig.getGeminiApiKey(MainActivity.this).isEmpty() && !isFinishing()) {
+                        WelcomeGuideDialog.show(MainActivity.this, new Runnable() {
+                            @Override public void run() {
+                                renderCurrentPage();
+                            }
+                        });
+                    }
+                }
+            });
+        }
     }
 
     private void renderCurrentPage() {
@@ -446,6 +459,24 @@ public class MainActivity extends Activity {
             }
         }));
 
+        // AI Onboarding & Advisor Quick Access Card
+        pageContent.addView(makeActionCard("🧭", en ? "AI Onboarding & Learning Advisor" : "🧭 專屬學習顧問 · 新手領航課",
+                en ? "Meet your personal guide tutor for a 2-min interactive tour!" : "初次體驗或想重新引導？點擊進入 2 分鐘 AI 導師語音破冰與導覽",
+                Color.parseColor("#A855F7"), new View.OnClickListener() {
+            @Override public void onClick(View v) {
+                if (AppConfig.getGeminiApiKey(MainActivity.this).isEmpty()) {
+                    WelcomeGuideDialog.show(MainActivity.this, new Runnable() {
+                        @Override public void run() { renderCurrentPage(); }
+                    });
+                } else {
+                    Intent intent = new Intent(MainActivity.this, NativeLiveActivity.class);
+                    intent.putExtra("EXTRA_ONBOARDING_MODE", true);
+                    intent.putExtra("EXTRA_TUTOR_PERSONA", "guide");
+                    startActivity(intent);
+                }
+            }
+        }));
+
         refreshStatus();
     }
 
@@ -590,6 +621,17 @@ public class MainActivity extends Activity {
                 : (en ? "Custom prompt active: " : "已啟用自訂 Prompt: ") + (customPrompt.length() > 20 ? customPrompt.substring(0, 20) + "…" : customPrompt);
         pageContent.addView(makeActionCard("✍️", en ? "Custom AI Tutor Prompt" : "自訂 AI 導師 Prompt 人設", promptSummary, Color.parseColor("#38BDF8"), new View.OnClickListener() {
             @Override public void onClick(View v) { showCustomPromptDialog(); }
+        }));
+
+        // Welcome Guide & Onboarding Replay
+        pageContent.addView(makeActionCard("🧭", en ? "Welcome Guide & AI Advisor" : "新手入學導覽與 AI 顧問 (重開導覽)",
+                en ? "View feature highlights or replay 1st lesson onboarding" : "查看功能特色說明、API Key 免費領取教學或重開新手引導課",
+                Color.parseColor("#A855F7"), new View.OnClickListener() {
+            @Override public void onClick(View v) {
+                WelcomeGuideDialog.show(MainActivity.this, new Runnable() {
+                    @Override public void run() { renderCurrentPage(); }
+                });
+            }
         }));
     }
 
