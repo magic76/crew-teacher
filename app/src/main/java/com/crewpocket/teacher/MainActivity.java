@@ -246,6 +246,61 @@ public class MainActivity extends Activity {
         streakCard.addView(progTrack);
         pageContent.addView(streakCard);
 
+        // 2.5 【🗺️ 系統口語關卡地圖】Learning Path & Missions
+        int totalStars = CourseManager.getTotalStars(this);
+        int completedLessons = CourseManager.getCompletedLessonsCount(this);
+        int totalLessons = CourseManager.getTotalLessonsCount();
+
+        LinearLayout courseBanner = new LinearLayout(this);
+        courseBanner.setOrientation(LinearLayout.VERTICAL);
+        courseBanner.setPadding(dp(16), dp(14), dp(16), dp(14));
+        GradientDrawable cbBg = new GradientDrawable();
+        cbBg.setColors(new int[]{Color.parseColor("#1E1B4B"), Color.parseColor("#0F172A")});
+        cbBg.setOrientation(GradientDrawable.Orientation.LEFT_RIGHT);
+        cbBg.setCornerRadius(dp(16));
+        cbBg.setStroke(dp(1), Color.parseColor("#6366F1"));
+        courseBanner.setBackground(cbBg);
+
+        LinearLayout cbTop = new LinearLayout(this);
+        cbTop.setOrientation(LinearLayout.HORIZONTAL);
+        cbTop.setGravity(Gravity.CENTER_VERTICAL);
+
+        TextView cbTitle = new TextView(this);
+        cbTitle.setText(en ? "🗺️ Learning Path & Missions" : "🗺️ 系統口語關卡地圖");
+        cbTitle.setTextSize(14);
+        cbTitle.setTextColor(Color.parseColor("#A5B4FC"));
+        cbTitle.setTypeface(Typeface.DEFAULT_BOLD);
+        cbTop.addView(cbTitle, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+
+        TextView cbBadge = new TextView(this);
+        cbBadge.setText("⭐ " + totalStars + " · 🏆 " + completedLessons + "/" + totalLessons);
+        cbBadge.setTextSize(12);
+        cbBadge.setTextColor(Color.parseColor("#FBBF24"));
+        cbBadge.setTypeface(Typeface.DEFAULT_BOLD);
+        cbTop.addView(cbBadge);
+        courseBanner.addView(cbTop);
+
+        TextView cbSub = new TextView(this);
+        cbSub.setText(en ? "Step-by-step oral drills: Travel, Business & Daily · Tap to start闖關"
+                : "出國自由行、商務會議、日常社交 · 任務通關解鎖 ›");
+        cbSub.setTextSize(11);
+        cbSub.setTextColor(Color.parseColor("#94A3B8"));
+        cbSub.setPadding(0, dp(4), 0, 0);
+        courseBanner.addView(cbSub);
+
+        courseBanner.setClickable(true);
+        courseBanner.setFocusable(true);
+        courseBanner.setOnClickListener(new View.OnClickListener() {
+            @Override public void onClick(View v) {
+                CourseMapDialog.show(MainActivity.this, null);
+            }
+        });
+
+        LinearLayout.LayoutParams cblp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        cblp.setMargins(0, dp(10), 0, dp(10));
+        courseBanner.setLayoutParams(cblp);
+        pageContent.addView(courseBanner);
+
         // 3. 【課前 3 鍵配置艙】Lesson Pod (語言 + 難易度 + 情境)
         LinearLayout lessonPod = new LinearLayout(this);
         lessonPod.setOrientation(LinearLayout.VERTICAL);

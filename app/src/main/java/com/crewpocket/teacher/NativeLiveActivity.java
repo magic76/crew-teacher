@@ -2,6 +2,7 @@ package com.crewpocket.teacher;
 
 import android.app.Activity;
 import android.content.Context;
+import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.graphics.Typeface;
@@ -69,6 +70,14 @@ public class NativeLiveActivity extends Activity {
     private TextToSpeech tts;
     private boolean ttsReady = false;
 
+    // ── 🎯 Option: Structured Lesson Mode ──
+    private boolean isLessonMode = false;
+    private String lessonId = null;
+    private CourseModel.Lesson currentLesson = null;
+    private LinearLayout missionHudCard;
+    private TextView missionHudTitle;
+    private final List<TextView> missionCheckBoxes = new ArrayList<TextView>();
+
     private int dp(float val) {
         return CrewTheme.dp(this, val);
     }
@@ -87,6 +96,18 @@ public class NativeLiveActivity extends Activity {
         String teachingMode = AppConfig.getTeachingMode(this);
         isShadowingMode = "shadowing".equals(teachingMode);
         fullReadingText = AppConfig.getReadingText(this);
+
+        Intent intent = getIntent();
+        if (intent != null && intent.hasExtra("EXTRA_LESSON_ID")) {
+            lessonId = intent.getStringExtra("EXTRA_LESSON_ID");
+            currentLesson = CourseManager.getLessonById(lessonId);
+            if (currentLesson != null) {
+                isLessonMode = true;
+                for (CourseModel.Mission m : currentLesson.missions) {
+                    m.achieved = false;
+                }
+            }
+        }
 
         initTts();
 
@@ -113,11 +134,15 @@ public class NativeLiveActivity extends Activity {
         header.addView(backBtn);
 
         TextView title = new TextView(this);
-        title.setText(isShadowingMode
-                ? (en ? "📖 Reading & Pronunciation Coach" : "📖 朗讀高亮與發音診斷")
-                : (en ? "🎓 Oral Practice Classroom" : "🎓 口語即時對話教室"));
+        if (isLessonMode && currentLesson != null) {
+            title.setText("🎯 " + currentLesson.getTitle(en));
+        } else {
+            title.setText(isShadowingMode
+                    ? (en ? "📖 Reading & Pronunciation Coach" : "📖 朗讀高亮與發音診斷")
+                    : (en ? "🎓 Oral Practice Classroom" : "🎓 口語即時對話教室"));
+        }
         title.setTextColor(Color.WHITE);
-        title.setTextSize(17);
+        title.setTextSize(16);
         title.setTypeface(Typeface.DEFAULT_BOLD);
         header.addView(title);
         root.addView(header);
@@ -155,6 +180,11 @@ public class NativeLiveActivity extends Activity {
         meterText.setTextSize(11);
         statusBox.addView(meterText);
         root.addView(statusBox);
+
+        // 2.5 Structured Lesson Mission HUD
+        if (isLessonMode && currentLesson != null) {
+            setupMissionHud(root, en);
+        }
 
         // 3. Main Area: If Shadowing mode -> Interactive Reading Board + Diagnostic Card
         if (isShadowingMode) {
@@ -467,6 +497,120 @@ public class NativeLiveActivity extends Activity {
         lbl.setTextColor(Color.parseColor("#94A3B8"));
         row.addView(lbl);
         return row;
+    }
+
+    private void setupMissionHud(LinearLayout root, final boolean en) {
+        missionHudCard = new LinearLayout(this);
+        missionHudCard.setOrientation(LinearLayout.VERTICAL);
+        missionHudCard.setPadding(dp(14), dp(10), dp(14), dp(10));
+        GradientDrawable mbg = new GradientDrawable();
+        mbg.setColor(Color.parseColor("#0F172A"));
+        mbg.setCornerRadius(dp(14));
+        mbg.setStroke(dp(1), Color.parseColor("#3B82F6"));
+        missionHudCard.setBackground(mbg);
+
+        LinearLayout.LayoutParams mlp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        mlp.setMargins(0, 0, 0, dp(10));
+        missionHudCard.setLayoutParams(mlp);
+
+        // Header Row
+        LinearLayout mHead = new LinearLayout(this);
+        mHead.setOrientation(LinearLayout.HORIZONTAL);
+        mHead.setGravity(Gravity.CENTER_VERTICAL);
+
+        missionHudTitle = new TextView(this);
+        missionHudTitle.setText("🎯 " + (en ? "Mission Goals (0/" : "挑戰目標 (0/") + currentLesson.missions.size() + (en ? " done)" : " 完成)"));
+        missionHudTitle.setTextSize(12);
+        missionHudTitle.setTextColor(Color.parseColor("#38BDF8"));
+        missionHudTitle.setTypeface(Typeface.DEFAULT_BOLD);
+        mHead.addView(missionHudTitle, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+
+        final TextView toggleBtn = new TextView(this);
+        toggleBtn.setText("▾");
+        toggleBtn.setTextSize(14);
+        toggleBtn.setTextColor(Color.parseColor("#94A3B8"));
+        mHead.addView(toggleBtn);
+        missionHudCard.addView(mHead);
+
+        final LinearLayout itemsCol = new LinearLayout(this);
+        itemsCol.setOrientation(LinearLayout.VERTICAL);
+        itemsCol.setPadding(0, dp(6), 0, 0);
+
+        missionCheckBoxes.clear();
+        for (int i = 0; i < currentLesson.missions.size(); i++) {
+            CourseModel.Mission m = currentLesson.missions.get(i);
+            LinearLayout itemRow = new LinearLayout(this);
+            itemRow.setOrientation(LinearLayout.HORIZONTAL);
+            itemRow.setGravity(Gravity.CENTER_VERTICAL);
+            itemRow.setPadding(0, dp(2), 0, dp(2));
+
+            TextView checkTv = new TextView(this);
+            checkTv.setText("[ ] ");
+            checkTv.setTextSize(12);
+            checkTv.setTextColor(Color.parseColor("#94A3B8"));
+            checkTv.setTypeface(Typeface.MONOSPACE);
+            missionCheckBoxes.add(checkTv);
+            itemRow.addView(checkTv);
+
+            TextView descTv = new TextView(this);
+            descTv.setText(m.getDesc(en));
+            descTv.setTextSize(11);
+            descTv.setTextColor(Color.parseColor("#E2E8F0"));
+            itemRow.addView(descTv);
+
+            itemsCol.addView(itemRow);
+        }
+        missionHudCard.addView(itemsCol);
+
+        mHead.setOnClickListener(new View.OnClickListener() {
+            @Override public void onClick(View v) {
+                boolean isVis = itemsCol.getVisibility() == View.VISIBLE;
+                itemsCol.setVisibility(isVis ? View.GONE : View.VISIBLE);
+                toggleBtn.setText(isVis ? "▸" : "▾");
+            }
+        });
+
+        root.addView(missionHudCard);
+    }
+
+    private void checkMissionsProgress(String userText) {
+        if (!isLessonMode || currentLesson == null || userText == null) return;
+        final boolean en = I18n.isEnglish(this);
+        String lower = userText.toLowerCase(java.util.Locale.US);
+        int doneCount = 0;
+        boolean newlyAchieved = false;
+
+        for (int i = 0; i < currentLesson.missions.size(); i++) {
+            CourseModel.Mission m = currentLesson.missions.get(i);
+            if (!m.achieved && m.targetKeywords != null) {
+                for (String kw : m.targetKeywords) {
+                    if (lower.contains(kw.toLowerCase(java.util.Locale.US))) {
+                        m.achieved = true;
+                        newlyAchieved = true;
+                        break;
+                    }
+                }
+            }
+            if (m.achieved) {
+                doneCount++;
+                if (i < missionCheckBoxes.size()) {
+                    TextView cb = missionCheckBoxes.get(i);
+                    cb.setText("[✓] ");
+                    cb.setTextColor(Color.parseColor("#34D399"));
+                }
+            }
+        }
+
+        if (missionHudTitle != null) {
+            missionHudTitle.setText("🎯 " + (en ? "Mission Goals (" : "挑戰目標 (") + doneCount + "/" + currentLesson.missions.size() + (en ? " done)" : " 完成)"));
+            if (doneCount == currentLesson.missions.size()) {
+                missionHudTitle.setTextColor(Color.parseColor("#34D399"));
+            }
+        }
+
+        if (newlyAchieved) {
+            Toast.makeText(this, en ? "🎯 Mission Goal Achieved!" : "🎯 達成一項挑戰目標！繼續加油", Toast.LENGTH_SHORT).show();
+        }
     }
 
     private void setupReadingData() {
@@ -902,13 +1046,27 @@ public class NativeLiveActivity extends Activity {
 
         String voice = AppConfig.getVoiceName(this);
         String lang = AppConfig.getTutorLanguage(this);
-        String persona = AppConfig.getTutorPersona(this);
+        String persona = isLessonMode && currentLesson != null && currentLesson.scenario != null
+                ? currentLesson.scenario : AppConfig.getTutorPersona(this);
         String noiseMode = AppConfig.getNoiseMode(this);
         int noiseSuppression = AppConfig.getNoiseSuppression(this);
         String liveTone = AppConfig.getLiveTone(this);
         int interruptionSensitivity = AppConfig.getInterruptionSensitivity(this);
         String audioOutput = AppConfig.getAudioOutput(this);
         String customPrompt = AppConfig.getCustomSystemPrompt(this);
+
+        if (isLessonMode && currentLesson != null) {
+            StringBuilder sb = new StringBuilder();
+            sb.append("\n\n[STRUCTURED ORAL LESSON ACTIVE]\n");
+            sb.append("Lesson Title: ").append(currentLesson.titleEn).append("\n");
+            sb.append("Role Context: ").append(currentLesson.promptInstruction).append("\n");
+            sb.append("Student Missions to achieve:\n");
+            for (int i = 0; i < currentLesson.missions.size(); i++) {
+                sb.append(i + 1).append(". ").append(currentLesson.missions.get(i).descEn).append("\n");
+            }
+            sb.append("Please speak in natural spoken English suitable for this role. Guide the student step by step to complete all missions.");
+            customPrompt = (customPrompt != null ? customPrompt : "") + sb.toString();
+        }
 
         updateStatus(CrewTheme.AMBER_400, "正在連線至語音引擎…");
         callButton.setText(isShadowingMode ? "完成朗讀 / 結束" : "掛斷對話");
@@ -1068,6 +1226,9 @@ public class NativeLiveActivity extends Activity {
         }
 
         currentChatTurn.spoken.append(text);
+        if (!isAi) {
+            checkMissionsProgress(text);
+        }
         renderChatCards();
     }
 
@@ -1537,6 +1698,56 @@ public class NativeLiveActivity extends Activity {
         });
         headRow.addView(closeBtn);
         container.addView(headRow);
+
+        // 1.5 Structured Lesson Achievement Banner
+        if (isLessonMode && currentLesson != null) {
+            int achievedCount = 0;
+            for (CourseModel.Mission m : currentLesson.missions) {
+                if (m.achieved) achievedCount++;
+            }
+            int stars = 0;
+            if (achievedCount == currentLesson.missions.size() && record.overallScore >= 70) {
+                stars = 3;
+            } else if (achievedCount >= 2 || record.overallScore >= 65) {
+                stars = 2;
+            } else if (achievedCount >= 1 || record.durationSeconds >= 45) {
+                stars = 1;
+            }
+            CourseManager.saveLessonProgress(this, currentLesson.id, stars, record.overallScore);
+            CourseModel.LessonProgress prog = CourseManager.getLessonProgress(this, currentLesson.id);
+
+            LinearLayout lessonSuccessCard = new LinearLayout(this);
+            lessonSuccessCard.setOrientation(LinearLayout.VERTICAL);
+            lessonSuccessCard.setPadding(dp(14), dp(12), dp(14), dp(12));
+            GradientDrawable lbg = new GradientDrawable();
+            lbg.setColor(Color.parseColor("#064E3B"));
+            lbg.setCornerRadius(dp(14));
+            lbg.setStroke(dp(1), Color.parseColor("#059669"));
+            lessonSuccessCard.setBackground(lbg);
+
+            LinearLayout.LayoutParams llp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            llp.setMargins(0, dp(10), 0, 0);
+            lessonSuccessCard.setLayoutParams(llp);
+
+            TextView lTitle = new TextView(this);
+            StringBuilder sb = new StringBuilder();
+            for (int s = 0; s < 3; s++) sb.append(s < prog.stars ? "⭐" : "☆");
+            lTitle.setText("🎉 " + (en ? "Lesson Result: " : "關卡通關評定：") + sb.toString());
+            lTitle.setTextSize(14);
+            lTitle.setTextColor(Color.WHITE);
+            lTitle.setTypeface(Typeface.DEFAULT_BOLD);
+            lessonSuccessCard.addView(lTitle);
+
+            TextView lSub = new TextView(this);
+            lSub.setText((en ? "Missions achieved: " : "達成目標：") + achievedCount + "/" + currentLesson.missions.size()
+                    + (prog.stars >= 1 ? (en ? " · Next lesson unlocked! 🔓" : " · 下一關卡已成功解鎖！🔓") : ""));
+            lSub.setTextSize(12);
+            lSub.setTextColor(Color.parseColor("#A7F3D0"));
+            lSub.setPadding(0, dp(2), 0, 0);
+            lessonSuccessCard.addView(lSub);
+
+            container.addView(lessonSuccessCard);
+        }
 
         // 2. Score Hero Banner
         LinearLayout heroScoreCard = new LinearLayout(this);
