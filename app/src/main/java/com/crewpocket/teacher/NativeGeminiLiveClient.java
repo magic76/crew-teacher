@@ -513,30 +513,24 @@ public class NativeGeminiLiveClient {
         return root.toString();
     }
 
+    private volatile long currentTranslationTurnId = 0;
+
     private void translateAsync(final String sourceText) {
         if (apiKey == null || apiKey.trim().isEmpty() || sourceText == null || sourceText.trim().isEmpty()) {
             Log.w(TAG, "translateAsync skipped: empty key or text");
             return;
         }
+        final long turnId = ++currentTranslationTurnId;
         String targetLang = AppConfig.getStudentLanguageDisplayName(context);
         String practiceLang = getLanguageDisplayName(tutorLang);
-        final String prompt = "You are an expert oral language tutor assistant.\n"
-                + "Spoken sentence in " + practiceLang + ":\n\"" + sourceText + "\"\n\n"
-                + "Student native language: " + targetLang + "\n\n"
-                + "Return a strictly valid JSON object with EXACTLY these keys:\n"
-                + "{\n"
-                + "  \"translation\": \"(fluent translation in " + targetLang + ")\",\n"
-                + "  \"key_vocab\": \"(1-2 key vocabulary words with phonetic/pronunciation tips or grammar notes in " + targetLang + ", e.g. 'comfortable (/ˈkʌmftəbl/ 重音在第一音節) - 舒適的', or empty)\",\n"
-                + "  \"suggested_replies\": [\n"
-                + "    \"(Sample reply 1 in " + practiceLang + ") ((translation in " + targetLang + "))\",\n"
-                + "    \"(Sample reply 2 in " + practiceLang + ") ((translation in " + targetLang + "))\"\n"
-                + "  ]\n"
-                + "}\n"
-                + "Output ONLY the JSON object without markdown fences or code blocks.";
 
-        GeminiApiClient.generateJson(apiKey, prompt, new GeminiApiClient.JsonCallback() {
+        GeminiApiClient.generateFastSubtitle(apiKey, practiceLang, targetLang, sourceText, new GeminiApiClient.JsonCallback() {
             @Override
             public void onSuccess(JSONObject obj, String rawText) {
+                if (turnId != currentTranslationTurnId) {
+                    // Stale turn result dropped so we never display lagged out-of-order translations
+                    return;
+                }
                 String mainTrans = obj.optString("translation", "").trim();
                 String keyVocab = obj.optString("key_vocab", "").trim();
                 JSONArray hintsArr = obj.optJSONArray("suggested_replies");
@@ -563,7 +557,7 @@ public class NativeGeminiLiveClient {
 
             @Override
             public void onError(String errorMessage) {
-                Log.w(TAG, "Translation error: " + errorMessage);
+                Log.w(TAG, "Fast translation error: " + errorMessage);
             }
         });
     }
