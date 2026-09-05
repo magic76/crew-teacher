@@ -514,14 +514,12 @@ public class NativeGeminiLiveClient {
     }
 
     private static final String[] TRANSLATION_MODELS = {
+            "gemini-3.6-flash",
+            "gemini-3.5-flash",
+            "gemini-3.0-flash",
+            "gemini-3-flash",
             "gemini-2.5-flash",
-            "gemini-2.0-flash",
-            "gemini-2.0-flash-exp",
-            "gemini-1.5-flash",
-            "gemini-1.5-flash-latest",
-            "gemini-1.5-flash-8b",
-            "gemini-1.5-pro",
-            "gemini-pro"
+            "gemini-2.0-flash"
     };
 
     private void translateAsync(final String sourceText) {

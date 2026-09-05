@@ -23,9 +23,11 @@ public class ReadingMaterialGenerator {
     private static final String TAG = "ReadingGen";
     private static final String[] CANDIDATE_MODELS = {
             "gemini-3.6-flash",
+            "gemini-3.5-flash",
+            "gemini-3.0-flash",
+            "gemini-3-flash",
             "gemini-2.5-flash",
-            "gemini-2.0-flash",
-            "gemini-1.5-flash"
+            "gemini-2.0-flash"
     };
 
     private static final OkHttpClient HTTP_CLIENT = new OkHttpClient.Builder()
