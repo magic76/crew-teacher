@@ -326,11 +326,10 @@ public class NativeGeminiLiveClient {
                     if (usingOboeOutput) NativeOboeOutput.finishTurn();
                     interruptedCurrentTurn = false;
                     interruptionHandler.removeCallbacks(clearInterruptedFallback);
-                    final String completeTurnText = currentAiTurnText.toString().trim();
+                    final String turnText = currentAiTurnText.toString().trim();
                     currentAiTurnText.setLength(0);
-                    String mode = AppConfig.getTeachingMode(context);
-                    if (!"immersion".equals(mode) && !completeTurnText.isEmpty()) {
-                        translateAsync(completeTurnText);
+                    if (!turnText.isEmpty()) {
+                        translateAsync(turnText);
                     }
                 }
             }
@@ -348,19 +347,6 @@ public class NativeGeminiLiveClient {
                             interruptionHandler.postDelayed(new Runnable() {
                                 @Override public void run() { stop(); }
                             }, 500);
-                        } else if ("update_subtitles".equals(name)) {
-                            JSONObject args = fc.optJSONObject("args");
-                            if (args != null) {
-                                String trans = args.optString("translation", "").trim();
-                                String vocab = args.optString("key_vocab", "").trim();
-                                String reply = args.optString("suggested_reply", "").trim();
-                                java.util.List<String> hints = new java.util.ArrayList<String>();
-                                if (!reply.isEmpty()) hints.add(reply);
-                                if (!trans.isEmpty()) {
-                                    listener.onSubtitleData("", trans, vocab, hints);
-                                }
-                            }
-                            sendToolResponse(id, name, new JSONObject().put("status", "ok"));
                         } else {
                             sendToolResponse(id, name, new JSONObject().put("status", "ok"));
                         }
@@ -425,19 +411,6 @@ public class NativeGeminiLiveClient {
         JSONArray tools = new JSONArray();
         tools.put(new JSONObject().put("name", "end_voice_session")
                 .put("description", "End the tutoring voice call when the user says goodbye, hang up, or exit (e.g. 結束, 掛斷, 再見, 先這樣, bye)."));
-
-        JSONObject subParams = new JSONObject();
-        subParams.put("type", "OBJECT");
-        JSONObject subProps = new JSONObject();
-        subProps.put("translation", new JSONObject().put("type", "STRING").put("description", "Accurate, natural translation of your spoken sentence in " + nativeLang));
-        subProps.put("key_vocab", new JSONObject().put("type", "STRING").put("description", "1 key vocabulary word with pronunciation tip or meaning in " + nativeLang));
-        subProps.put("suggested_reply", new JSONObject().put("type", "STRING").put("description", "1 sample natural sentence the student can say next in " + langName));
-        subParams.put("properties", subProps);
-        subParams.put("required", new JSONArray().put("translation"));
-
-        tools.put(new JSONObject().put("name", "update_subtitles")
-                .put("description", "Provide instant student-side bilingual subtitle, translation, and quick reply suggestion for each turn you speak. Call this alongside or right after speaking.")
-                .put("parameters", subParams));
 
         setup.put("tools", new JSONArray().put(new JSONObject().put("functionDeclarations", tools)));
 
