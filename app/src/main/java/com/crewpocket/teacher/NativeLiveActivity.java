@@ -191,6 +191,9 @@ public class NativeLiveActivity extends Activity {
             setupReadingData();
 
             ScrollView readingScroll = new ScrollView(this);
+            readingScroll.setVerticalScrollBarEnabled(false);
+            readingScroll.setHorizontalScrollBarEnabled(false);
+            readingScroll.setOverScrollMode(View.OVER_SCROLL_NEVER);
             readingScroll.setFillViewport(true);
             LinearLayout.LayoutParams rslp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f);
             rslp.setMargins(0, 0, 0, dp(14));
@@ -364,6 +367,9 @@ public class NativeLiveActivity extends Activity {
             transcriptCard.addView(tTitle);
 
             transcriptScrollView = new ScrollView(this);
+            transcriptScrollView.setVerticalScrollBarEnabled(false);
+            transcriptScrollView.setHorizontalScrollBarEnabled(false);
+            transcriptScrollView.setOverScrollMode(View.OVER_SCROLL_NEVER);
             transcriptScrollView.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
             transcriptScrollView.setPadding(0, dp(4), 0, 0);
 
@@ -381,6 +387,8 @@ public class NativeLiveActivity extends Activity {
         if (!isShadowingMode) {
             HorizontalScrollView iceScroll = new HorizontalScrollView(this);
             iceScroll.setHorizontalScrollBarEnabled(false);
+            iceScroll.setVerticalScrollBarEnabled(false);
+            iceScroll.setOverScrollMode(View.OVER_SCROLL_NEVER);
             LinearLayout.LayoutParams iLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
             iLp.setMargins(0, 0, 0, dp(10));
             iceScroll.setLayoutParams(iLp);
@@ -1741,6 +1749,9 @@ public class NativeLiveActivity extends Activity {
         dialog.getWindow().setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(Color.parseColor("#D0000000")));
 
         ScrollView scroll = new ScrollView(this);
+        scroll.setVerticalScrollBarEnabled(false);
+        scroll.setHorizontalScrollBarEnabled(false);
+        scroll.setOverScrollMode(View.OVER_SCROLL_NEVER);
         scroll.setFillViewport(true);
         scroll.setPadding(dp(16), dp(24), dp(16), dp(24));
 
@@ -1752,6 +1763,9 @@ public class NativeLiveActivity extends Activity {
         cBg.setCornerRadius(dp(20));
         cBg.setStroke(dp(1), Color.parseColor("#334155"));
         container.setBackground(cBg);
+
+        final List<LearningDataManager.StarredItem> allReportItems = new ArrayList<LearningDataManager.StarredItem>();
+        final List<Button> allStarButtons = new ArrayList<Button>();
 
         // 1. Header Bar: Title & Close Button
         LinearLayout headRow = new LinearLayout(this);
@@ -1942,7 +1956,7 @@ public class NativeLiveActivity extends Activity {
 
         // 4. Recasts Corrections (道地重述對照)
         try {
-            JSONArray recasts = new JSONArray(record.recastsJson);
+            JSONArray recasts = new JSONArray(record.recastsJson != null ? record.recastsJson : "[]");
             if (recasts.length() > 0) {
                 TextView rcTitle = new TextView(this);
                 rcTitle.setText(en ? "✨ Native Recast & Fixes (Tap ⭐ to save)" : "✨ 母語者道地重述對照（點擊 ⭐ 收藏）");
@@ -1957,6 +1971,15 @@ public class NativeLiveActivity extends Activity {
                     final String orig = rc.optString("original", "");
                     final String corr = rc.optString("corrected", "");
                     final String expl = rc.optString("explanation", "");
+
+                    if (!corr.isEmpty()) {
+                        LearningDataManager.StarredItem si = new LearningDataManager.StarredItem();
+                        si.originalText = corr;
+                        si.translation = orig;
+                        si.category = "correction";
+                        si.notes = expl;
+                        allReportItems.add(si);
+                    }
 
                     LinearLayout rcCard = new LinearLayout(this);
                     rcCard.setOrientation(LinearLayout.VERTICAL);
@@ -2039,6 +2062,7 @@ public class NativeLiveActivity extends Activity {
                         }
                     });
                     corRow.addView(starBtn, new LinearLayout.LayoutParams(dp(34), dp(28)));
+                    allStarButtons.add(starBtn);
                     rcCard.addView(corRow);
 
                     if (!expl.isEmpty()) {
@@ -2057,7 +2081,7 @@ public class NativeLiveActivity extends Activity {
 
         // 5. Key Takeaways
         try {
-            JSONArray takeaways = new JSONArray(record.takeawaysJson);
+            JSONArray takeaways = new JSONArray(record.takeawaysJson != null ? record.takeawaysJson : "[]");
             if (takeaways.length() > 0) {
                 TextView tkTitle = new TextView(this);
                 tkTitle.setText(en ? "💡 Key Takeaways & Useful Expressions" : "💡 課後精選實用金句");
@@ -2071,6 +2095,15 @@ public class NativeLiveActivity extends Activity {
                     JSONObject tk = takeaways.getJSONObject(i);
                     final String phrase = tk.optString("phrase", "");
                     final String trans = tk.optString("translation", "");
+
+                    if (!phrase.isEmpty()) {
+                        LearningDataManager.StarredItem si = new LearningDataManager.StarredItem();
+                        si.originalText = phrase;
+                        si.translation = trans;
+                        si.category = "phrase";
+                        si.notes = "";
+                        allReportItems.add(si);
+                    }
 
                     LinearLayout tkCard = new LinearLayout(this);
                     tkCard.setOrientation(LinearLayout.HORIZONTAL);
@@ -2134,6 +2167,7 @@ public class NativeLiveActivity extends Activity {
                         }
                     });
                     tkCard.addView(starBtn, new LinearLayout.LayoutParams(dp(36), dp(28)));
+                    allStarButtons.add(starBtn);
 
                     container.addView(tkCard);
                 }
@@ -2176,7 +2210,7 @@ public class NativeLiveActivity extends Activity {
         LinearLayout btnRow = new LinearLayout(this);
         btnRow.setOrientation(LinearLayout.HORIZONTAL);
 
-        Button starAllBtn = new Button(this);
+        final Button starAllBtn = new Button(this);
         starAllBtn.setText(en ? "⭐ Star All Sentences" : "⭐ 一鍵收藏所有精選句子");
         starAllBtn.setTextSize(12);
         starAllBtn.setTextColor(Color.WHITE);
@@ -2187,30 +2221,32 @@ public class NativeLiveActivity extends Activity {
         starAllBtn.setBackground(sab);
         starAllBtn.setOnClickListener(new View.OnClickListener() {
             @Override public void onClick(View v) {
-                int count = 0;
-                try {
-                    JSONArray recasts = new JSONArray(record.recastsJson);
-                    for (int i = 0; i < recasts.length(); i++) {
-                        JSONObject rc = recasts.getJSONObject(i);
-                        String corr = rc.optString("corrected", "");
-                        String orig = rc.optString("original", "");
-                        if (!corr.isEmpty() && !LearningDataManager.isStarred(NativeLiveActivity.this, corr)) {
-                            LearningDataManager.toggleStarItem(NativeLiveActivity.this, corr, orig, "correction", "");
-                            count++;
+                if (allReportItems.isEmpty() && record.fullTranscript != null && !record.fullTranscript.isEmpty()) {
+                    String[] lines = record.fullTranscript.split("\n");
+                    for (String l : lines) {
+                        if (l.startsWith("Tutor:") || l.startsWith("Student:")) {
+                            String clean = l.replaceFirst("^(?:Tutor|Student):\\s*", "").trim();
+                            if (clean.length() > 5) {
+                                LearningDataManager.StarredItem item = new LearningDataManager.StarredItem();
+                                item.originalText = clean;
+                                item.translation = "";
+                                item.category = "phrase";
+                                allReportItems.add(item);
+                            }
                         }
                     }
-                    JSONArray takeaways = new JSONArray(record.takeawaysJson);
-                    for (int i = 0; i < takeaways.length(); i++) {
-                        JSONObject tk = takeaways.getJSONObject(i);
-                        String phrase = tk.optString("phrase", "");
-                        String trans = tk.optString("translation", "");
-                        if (!phrase.isEmpty() && !LearningDataManager.isStarred(NativeLiveActivity.this, phrase)) {
-                            LearningDataManager.toggleStarItem(NativeLiveActivity.this, phrase, trans, "phrase", "");
-                            count++;
-                        }
+                }
+
+                int added = LearningDataManager.addStarredItemsBatch(NativeLiveActivity.this, allReportItems);
+                for (Button b : allStarButtons) {
+                    if (b != null) {
+                        b.setText("★");
+                        b.setTextColor(Color.parseColor("#FBBF24"));
                     }
-                } catch (Exception ignored) {}
-                Toast.makeText(NativeLiveActivity.this, en ? ("⭐ " + count + " items added to Phrasebook!") : ("⭐ 已收藏 " + count + " 條精選金句至生詞本！"), Toast.LENGTH_SHORT).show();
+                }
+                int displayCount = added > 0 ? added : allReportItems.size();
+                starAllBtn.setText(en ? ("✅ All Saved (" + displayCount + ")") : ("✅ 已全部收藏 (" + displayCount + " 句)"));
+                Toast.makeText(NativeLiveActivity.this, en ? ("⭐ Saved " + displayCount + " items to Phrasebook!") : ("⭐ 已成功收藏 " + displayCount + " 條精選金句至生詞本！"), Toast.LENGTH_SHORT).show();
             }
         });
         btnRow.addView(starAllBtn, new LinearLayout.LayoutParams(0, dp(44), 1.2f));

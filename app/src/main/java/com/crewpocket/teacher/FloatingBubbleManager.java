@@ -358,6 +358,9 @@ public class FloatingBubbleManager {
 
         // Transcript Scroll View with Conversation Cards
         transcriptScroll = new ScrollView(context);
+        transcriptScroll.setVerticalScrollBarEnabled(false);
+        transcriptScroll.setHorizontalScrollBarEnabled(false);
+        transcriptScroll.setOverScrollMode(View.OVER_SCROLL_NEVER);
         transcriptScroll.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(150)));
         transcriptScroll.setPadding(dp(4), dp(4), dp(4), dp(4));
 

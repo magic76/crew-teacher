@@ -57,6 +57,9 @@ public class MainActivity extends Activity {
         getWindow().getDecorView().setBackgroundColor(CrewTheme.BG_PRIMARY);
 
         ScrollView scroll = new ScrollView(this);
+        scroll.setVerticalScrollBarEnabled(false);
+        scroll.setHorizontalScrollBarEnabled(false);
+        scroll.setOverScrollMode(View.OVER_SCROLL_NEVER);
         scroll.setFillViewport(true);
         scroll.setBackgroundColor(CrewTheme.BG_PRIMARY);
 
@@ -488,6 +491,12 @@ public class MainActivity extends Activity {
                 (starredCount > 0 ? ((en ? "Collected " : "已收藏 ") + starredCount + (en ? " items" : " 條精選金句/生詞")) : (en ? "0 items · Star phrases in practice" : "尚未收藏 · 練習中點擊 ⭐ 即可收藏")) + (en ? " · Tap to review & listen" : " · 點擊複習與發音"),
                 Color.parseColor("#F59E0B"), new View.OnClickListener() {
             @Override public void onClick(View v) { showStarredPhrasebookDialog(); }
+        }));
+
+        pageContent.addView(makeActionCard("🎙️", en ? "Shadowing & Read-Along Lab" : "🎙️ 朗讀跟讀練功房 (照句帶讀)",
+                en ? "Sentence-by-sentence read-along with instant pronunciation feedback & speed control" : "外師逐句給句示範 · 照著朗讀即時評測發音與連音",
+                Color.parseColor("#8B5CF6"), new View.OnClickListener() {
+            @Override public void onClick(View v) { OralCoachHelper.showShadowingLabDialog(MainActivity.this, null, null); }
         }));
 
         int sessionCount = LearningDataManager.getSessionHistory(this).size();
@@ -1275,6 +1284,9 @@ public class MainActivity extends Activity {
         }
 
         ScrollView scroll = new ScrollView(this);
+        scroll.setVerticalScrollBarEnabled(false);
+        scroll.setHorizontalScrollBarEnabled(false);
+        scroll.setOverScrollMode(View.OVER_SCROLL_NEVER);
         scroll.setFillViewport(true);
         scroll.setPadding(dp(16), dp(24), dp(16), dp(24));
 
@@ -1328,8 +1340,28 @@ public class MainActivity extends Activity {
                 container.addView(subtitle);
 
                 if (!items.isEmpty()) {
+                    LinearLayout btnGrid = new LinearLayout(MainActivity.this);
+                    btnGrid.setOrientation(LinearLayout.HORIZONTAL);
+                    btnGrid.setPadding(0, 0, 0, dp(12));
+
+                    Button shadowBtn = new Button(MainActivity.this);
+                    shadowBtn.setText(en ? "🎙️ Read-Along Drill" : "🎙️ 照句跟讀練習");
+                    shadowBtn.setTextSize(12);
+                    shadowBtn.setTextColor(Color.WHITE);
+                    shadowBtn.setTypeface(Typeface.DEFAULT_BOLD);
+                    GradientDrawable sbg = new GradientDrawable();
+                    sbg.setColor(Color.parseColor("#7C3AED"));
+                    sbg.setCornerRadius(dp(10));
+                    shadowBtn.setBackground(sbg);
+                    shadowBtn.setOnClickListener(new View.OnClickListener() {
+                        @Override public void onClick(View v) {
+                            OralCoachHelper.showShadowingLabDialog(MainActivity.this, null, en ? "My Starred" : "我的收藏金句");
+                        }
+                    });
+                    btnGrid.addView(shadowBtn, new LinearLayout.LayoutParams(0, dp(40), 1f));
+
                     Button quizBtn = new Button(MainActivity.this);
-                    quizBtn.setText(en ? "🃏 30s Flashcard Quiz Game" : "🃏 30 秒抽卡自測小遊戲");
+                    quizBtn.setText(en ? "🃏 Flashcard Quiz" : "🃏 翻卡測驗遊戲");
                     quizBtn.setTextSize(12);
                     quizBtn.setTextColor(Color.WHITE);
                     quizBtn.setTypeface(Typeface.DEFAULT_BOLD);
@@ -1337,15 +1369,17 @@ public class MainActivity extends Activity {
                     qbg.setColor(Color.parseColor("#4F46E5"));
                     qbg.setCornerRadius(dp(10));
                     quizBtn.setBackground(qbg);
+                    LinearLayout.LayoutParams qlp = new LinearLayout.LayoutParams(0, dp(40), 1f);
+                    qlp.setMargins(dp(8), 0, 0, 0);
+                    quizBtn.setLayoutParams(qlp);
                     quizBtn.setOnClickListener(new View.OnClickListener() {
                         @Override public void onClick(View v) {
                             OralCoachHelper.showFlashcardQuizDialog(MainActivity.this);
                         }
                     });
-                    LinearLayout.LayoutParams qlp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(40));
-                    qlp.setMargins(0, 0, 0, dp(12));
-                    quizBtn.setLayoutParams(qlp);
-                    container.addView(quizBtn);
+                    btnGrid.addView(quizBtn);
+
+                    container.addView(btnGrid);
                 }
 
                 if (items.isEmpty()) {
@@ -1485,6 +1519,9 @@ public class MainActivity extends Activity {
         }
 
         ScrollView scroll = new ScrollView(this);
+        scroll.setVerticalScrollBarEnabled(false);
+        scroll.setHorizontalScrollBarEnabled(false);
+        scroll.setOverScrollMode(View.OVER_SCROLL_NEVER);
         scroll.setFillViewport(true);
         scroll.setPadding(dp(16), dp(24), dp(16), dp(24));
 
@@ -1674,6 +1711,9 @@ public class MainActivity extends Activity {
         }
 
         ScrollView scroll = new ScrollView(this);
+        scroll.setVerticalScrollBarEnabled(false);
+        scroll.setHorizontalScrollBarEnabled(false);
+        scroll.setOverScrollMode(View.OVER_SCROLL_NEVER);
         scroll.setFillViewport(true);
         scroll.setPadding(dp(16), dp(24), dp(16), dp(24));
 
@@ -1685,6 +1725,9 @@ public class MainActivity extends Activity {
         cBg.setCornerRadius(dp(20));
         cBg.setStroke(dp(1), Color.parseColor("#334155"));
         container.setBackground(cBg);
+
+        final List<LearningDataManager.StarredItem> allReportItems = new ArrayList<LearningDataManager.StarredItem>();
+        final List<Button> allStarButtons = new ArrayList<Button>();
 
         // 1. Header Bar: Title & Close Button
         LinearLayout headRow = new LinearLayout(this);
@@ -1825,7 +1868,7 @@ public class MainActivity extends Activity {
 
         // 4. Recasts Corrections (道地重述對照)
         try {
-            JSONArray recasts = new JSONArray(record.recastsJson);
+            JSONArray recasts = new JSONArray(record.recastsJson != null ? record.recastsJson : "[]");
             if (recasts.length() > 0) {
                 TextView rcTitle = new TextView(this);
                 rcTitle.setText(en ? "✨ Native Recast & Fixes (Tap ⭐ to save)" : "✨ 母語者道地重述對照（點擊 ⭐ 收藏）");
@@ -1840,6 +1883,15 @@ public class MainActivity extends Activity {
                     final String orig = rc.optString("original", "");
                     final String corr = rc.optString("corrected", "");
                     final String expl = rc.optString("explanation", "");
+
+                    if (!corr.isEmpty()) {
+                        LearningDataManager.StarredItem si = new LearningDataManager.StarredItem();
+                        si.originalText = corr;
+                        si.translation = orig;
+                        si.category = "correction";
+                        si.notes = expl;
+                        allReportItems.add(si);
+                    }
 
                     LinearLayout rcCard = new LinearLayout(this);
                     rcCard.setOrientation(LinearLayout.VERTICAL);
@@ -1904,6 +1956,7 @@ public class MainActivity extends Activity {
                         }
                     });
                     corRow.addView(starBtn, new LinearLayout.LayoutParams(dp(36), dp(28)));
+                    allStarButtons.add(starBtn);
                     rcCard.addView(corRow);
 
                     if (!expl.isEmpty()) {
@@ -1922,7 +1975,7 @@ public class MainActivity extends Activity {
 
         // 5. Key Takeaways
         try {
-            JSONArray takeaways = new JSONArray(record.takeawaysJson);
+            JSONArray takeaways = new JSONArray(record.takeawaysJson != null ? record.takeawaysJson : "[]");
             if (takeaways.length() > 0) {
                 TextView tkTitle = new TextView(this);
                 tkTitle.setText(en ? "💡 Key Takeaways & Useful Expressions" : "💡 課後精選實用金句");
@@ -1936,6 +1989,15 @@ public class MainActivity extends Activity {
                     JSONObject tk = takeaways.getJSONObject(i);
                     final String phrase = tk.optString("phrase", "");
                     final String trans = tk.optString("translation", "");
+
+                    if (!phrase.isEmpty()) {
+                        LearningDataManager.StarredItem si = new LearningDataManager.StarredItem();
+                        si.originalText = phrase;
+                        si.translation = trans;
+                        si.category = "phrase";
+                        si.notes = "";
+                        allReportItems.add(si);
+                    }
 
                     LinearLayout tkCard = new LinearLayout(this);
                     tkCard.setOrientation(LinearLayout.HORIZONTAL);
@@ -1999,6 +2061,7 @@ public class MainActivity extends Activity {
                         }
                     });
                     tkCard.addView(starBtn, new LinearLayout.LayoutParams(dp(36), dp(28)));
+                    allStarButtons.add(starBtn);
 
                     container.addView(tkCard);
                 }
@@ -2041,7 +2104,7 @@ public class MainActivity extends Activity {
         LinearLayout btnRow = new LinearLayout(this);
         btnRow.setOrientation(LinearLayout.HORIZONTAL);
 
-        Button starAllBtn = new Button(this);
+        final Button starAllBtn = new Button(this);
         starAllBtn.setText(en ? "⭐ Star All Sentences" : "⭐ 一鍵收藏所有精選句子");
         starAllBtn.setTextSize(12);
         starAllBtn.setTextColor(Color.WHITE);
@@ -2052,30 +2115,32 @@ public class MainActivity extends Activity {
         starAllBtn.setBackground(sab);
         starAllBtn.setOnClickListener(new View.OnClickListener() {
             @Override public void onClick(View v) {
-                int count = 0;
-                try {
-                    JSONArray recasts = new JSONArray(record.recastsJson);
-                    for (int i = 0; i < recasts.length(); i++) {
-                        JSONObject rc = recasts.getJSONObject(i);
-                        String corr = rc.optString("corrected", "");
-                        String orig = rc.optString("original", "");
-                        if (!corr.isEmpty() && !LearningDataManager.isStarred(MainActivity.this, corr)) {
-                            LearningDataManager.toggleStarItem(MainActivity.this, corr, orig, "correction", "");
-                            count++;
+                if (allReportItems.isEmpty() && record.fullTranscript != null && !record.fullTranscript.isEmpty()) {
+                    String[] lines = record.fullTranscript.split("\n");
+                    for (String l : lines) {
+                        if (l.startsWith("Tutor:") || l.startsWith("Student:")) {
+                            String clean = l.replaceFirst("^(?:Tutor|Student):\\s*", "").trim();
+                            if (clean.length() > 5) {
+                                LearningDataManager.StarredItem item = new LearningDataManager.StarredItem();
+                                item.originalText = clean;
+                                item.translation = "";
+                                item.category = "phrase";
+                                allReportItems.add(item);
+                            }
                         }
                     }
-                    JSONArray takeaways = new JSONArray(record.takeawaysJson);
-                    for (int i = 0; i < takeaways.length(); i++) {
-                        JSONObject tk = takeaways.getJSONObject(i);
-                        String phrase = tk.optString("phrase", "");
-                        String trans = tk.optString("translation", "");
-                        if (!phrase.isEmpty() && !LearningDataManager.isStarred(MainActivity.this, phrase)) {
-                            LearningDataManager.toggleStarItem(MainActivity.this, phrase, trans, "phrase", "");
-                            count++;
-                        }
+                }
+
+                int added = LearningDataManager.addStarredItemsBatch(MainActivity.this, allReportItems);
+                for (Button b : allStarButtons) {
+                    if (b != null) {
+                        b.setText("★");
+                        b.setTextColor(Color.parseColor("#FBBF24"));
                     }
-                } catch (Exception ignored) {}
-                Toast.makeText(MainActivity.this, en ? ("⭐ " + count + " items added to Phrasebook!") : ("⭐ 已收藏 " + count + " 條精選金句至生詞本！"), Toast.LENGTH_SHORT).show();
+                }
+                int displayCount = added > 0 ? added : allReportItems.size();
+                starAllBtn.setText(en ? ("✅ All Saved (" + displayCount + ")") : ("✅ 已全部收藏 (" + displayCount + " 句)"));
+                Toast.makeText(MainActivity.this, en ? ("⭐ Saved " + displayCount + " items to Phrasebook!") : ("⭐ 已成功收藏 " + displayCount + " 條精選金句至生詞本！"), Toast.LENGTH_SHORT).show();
             }
         });
         btnRow.addView(starAllBtn, new LinearLayout.LayoutParams(0, dp(44), 1.2f));

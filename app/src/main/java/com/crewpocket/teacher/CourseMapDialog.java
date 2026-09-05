@@ -112,6 +112,8 @@ public class CourseMapDialog {
         // 2. Track Switcher Tabs
         HorizontalScrollView tabScroll = new HorizontalScrollView(activity);
         tabScroll.setHorizontalScrollBarEnabled(false);
+        tabScroll.setVerticalScrollBarEnabled(false);
+        tabScroll.setOverScrollMode(View.OVER_SCROLL_NEVER);
         final LinearLayout tabContainer = new LinearLayout(activity);
         tabContainer.setOrientation(LinearLayout.HORIZONTAL);
         tabScroll.addView(tabContainer);
@@ -119,6 +121,9 @@ public class CourseMapDialog {
 
         // 3. Units & Lessons Scroll Area
         ScrollView contentScroll = new ScrollView(activity);
+        contentScroll.setVerticalScrollBarEnabled(false);
+        contentScroll.setHorizontalScrollBarEnabled(false);
+        contentScroll.setOverScrollMode(View.OVER_SCROLL_NEVER);
         contentScroll.setFillViewport(true);
         LinearLayout.LayoutParams clp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f);
         clp.setMargins(0, dp(activity, 10), 0, 0);
@@ -355,6 +360,9 @@ public class CourseMapDialog {
         }
 
         ScrollView scroll = new ScrollView(activity);
+        scroll.setVerticalScrollBarEnabled(false);
+        scroll.setHorizontalScrollBarEnabled(false);
+        scroll.setOverScrollMode(View.OVER_SCROLL_NEVER);
         scroll.setFillViewport(true);
         scroll.setPadding(dp(activity, 16), dp(activity, 20), dp(activity, 16), dp(activity, 20));
 

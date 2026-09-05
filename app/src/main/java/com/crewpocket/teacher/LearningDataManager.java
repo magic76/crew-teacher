@@ -184,6 +184,69 @@ public class LearningDataManager {
         return false;
     }
 
+    public static synchronized boolean addStarredItem(Context context, String originalText, String translation, String category, String notes) {
+        if (originalText == null || originalText.trim().isEmpty()) return false;
+        String clean = originalText.trim();
+        List<StarredItem> items = getStarredItems(context);
+        for (StarredItem it : items) {
+            if (clean.equalsIgnoreCase(it.originalText.trim())) {
+                if ((it.translation == null || it.translation.isEmpty()) && translation != null && !translation.isEmpty()) {
+                    it.translation = translation.trim();
+                    saveStarredItems(context, items);
+                }
+                return false; // Already present
+            }
+        }
+        StarredItem item = new StarredItem();
+        item.id = "star_" + System.currentTimeMillis() + "_" + (int)(Math.random() * 1000);
+        item.timestamp = System.currentTimeMillis();
+        item.originalText = clean;
+        item.translation = translation != null ? translation.trim() : "";
+        item.category = category != null ? category : "phrase";
+        item.notes = notes != null ? notes.trim() : "";
+        items.add(0, item);
+        saveStarredItems(context, items);
+        return true;
+    }
+
+    public static synchronized int addStarredItemsBatch(Context context, List<StarredItem> toAdd) {
+        if (toAdd == null || toAdd.isEmpty()) return 0;
+        List<StarredItem> items = getStarredItems(context);
+        int added = 0;
+        long now = System.currentTimeMillis();
+        int seq = 0;
+        for (StarredItem newItem : toAdd) {
+            if (newItem == null || newItem.originalText == null || newItem.originalText.trim().isEmpty()) continue;
+            String clean = newItem.originalText.trim();
+            boolean exists = false;
+            for (StarredItem it : items) {
+                if (clean.equalsIgnoreCase(it.originalText.trim())) {
+                    exists = true;
+                    if ((it.translation == null || it.translation.isEmpty()) && newItem.translation != null && !newItem.translation.isEmpty()) {
+                        it.translation = newItem.translation.trim();
+                    }
+                    break;
+                }
+            }
+            if (!exists) {
+                StarredItem item = new StarredItem();
+                item.id = "star_" + (now + seq) + "_" + seq;
+                item.timestamp = now + seq;
+                item.originalText = clean;
+                item.translation = newItem.translation != null ? newItem.translation.trim() : "";
+                item.category = newItem.category != null ? newItem.category : "phrase";
+                item.notes = newItem.notes != null ? newItem.notes.trim() : "";
+                items.add(0, item);
+                added++;
+                seq++;
+            }
+        }
+        if (added > 0 || seq > 0) {
+            saveStarredItems(context, items);
+        }
+        return added;
+    }
+
     public static synchronized boolean toggleStarItem(Context context, String originalText, String translation, String category, String notes) {
         if (originalText == null || originalText.trim().isEmpty()) return false;
         String clean = originalText.trim();
@@ -202,7 +265,7 @@ public class LearningDataManager {
             return false; // unstarred
         } else {
             StarredItem item = new StarredItem();
-            item.id = "star_" + System.currentTimeMillis();
+            item.id = "star_" + System.currentTimeMillis() + "_" + (int)(Math.random() * 1000);
             item.timestamp = System.currentTimeMillis();
             item.originalText = clean;
             item.translation = translation != null ? translation.trim() : "";
