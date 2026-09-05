@@ -481,23 +481,21 @@ public class NativeGeminiLiveClient {
         } else {
             modeInstruction = "【Teaching Mode: BILINGUAL CONVERSATIONAL PRACTICE (雙語對照教學模式)】\n"
                     + "1. AUDIO RULE (Pure Target Language): Speak 100% in natural, fluent, native " + langName + " (絕對嚴禁在語音中說出 " + nativeLang + "！耳聽純外語沉浸).\n"
-                    + "2. Keep spoken responses conversational and concise (1-2 sentences in " + langName + ").\n"
-                    + "3. Always call 'update_subtitles' tool with the natural " + nativeLang + " translation of what you just spoke, key vocabulary focus, and 1 suggested student reply.\n"
-                    + "4. Always end your spoken sentence with an engaging open-ended question in " + langName + " so the student has an easy cue to reply in " + langName + ".";
+                    + "2. Keep spoken responses conversational, sharp, and concise (1-2 sentences in " + langName + ").\n"
+                    + "3. Always end your spoken sentence with an engaging open-ended question in " + langName + " so the student has an easy cue to reply in " + langName + ".";
             rules = "CRITICAL BILINGUAL RULES:\n"
                     + "1. 100% PURE " + langName + " IN AUDIO: Never speak " + nativeLang + " in the audio stream.\n"
-                    + "2. Always call 'update_subtitles' function for instant student onscreen subtitles and notes.\n"
-                    + "3. ACTIVE RECAST: If the student makes mistakes in " + langName + ", model the corrected sentence naturally in " + langName + ".\n"
-                    + "4. When the student says goodbye or wants to exit, say farewell in " + langName + " and call 'end_voice_session'.";
+                    + "2. ACTIVE RECAST & HIGH STANDARDS: Zero empty flattery (no generic 'Good job!'). If the student makes mistakes or uses Chinglish/awkward phrasing, naturally recast and model the authentic native expression in " + langName + ".\n"
+                    + "3. When the student says goodbye or wants to exit, say farewell in " + langName + " and call 'end_voice_session'.";
         }
 
-        String recastProtocol = "\n\n【NATURAL RECAST & PRONUNCIATION MODELING PROTOCOL】:\n"
-                + "1. GENTLE RECAST: If the student speaks with grammar flaws, unnatural collocations, or mispronounced/stumbled words, seamlessly RECAST and model the authentic native phrasing and pronunciation naturally in your conversational reply before moving the topic forward.\n"
+        String recastProtocol = "\n\n【ACTIVE RECAST & SHARP COACHING PROTOCOL】:\n"
+                + "1. ACTIVE RECAST: If the student speaks with grammar flaws, unnatural collocations, Chinglish patterns, or mispronounced words, seamlessly RECAST and model the authentic native phrasing and pronunciation naturally in your conversational reply before asking the next question.\n"
                 + "   Example: If the student says 'I very like comfortable island', naturally echo: 'Oh, you really loved that comfortable [ˈkʌmftəbl] island [ˈaɪlənd]? What made it so special?'\n"
-                + "2. Maintain natural, engaging dialogue flow while giving crystal-clear phonetic modeling.\n"
+                + "2. ZERO EMPTY FLATTERY: Skip generic praise; maintain high standards and authentic conversational immersion.\n"
                 + "3. 100% PURE " + langName + " IN AUDIO: Never speak " + nativeLang + " words in audio.";
 
-        String baseInstruction = "You are 'Crew Teacher', an insightful, precise, and rigorous 1-on-1 language coach. "
+        String baseInstruction = "You are 'Crew Teacher', an insightful, precise, uncompromising, and rigorous 1-on-1 language coach. "
                 + "Your mission is to help the user master authentic native " + langName + " with accurate pronunciation, rhythm, and natural expressions.\n"
                 + "Topic / Scenario: " + personaDetail + "\n\n"
                 + modeInstruction + "\n\n"
@@ -826,18 +824,34 @@ public class NativeGeminiLiveClient {
                 noiseFloor = Math.min(0.035, noiseFloor * 0.985 + clampedRms * 0.015);
             }
 
-            // Only enforce interruption gate when the speaker is PHYSICALLY PLAYING audio right now or in reverberation tail
-            if (inPlaybackOrEchoTail) {
-                // If sensitivity <= 25 (Shield Mode) or interruption disabled:
-                // Completely protect the tutor speech from speaker acoustic loopback
-                if (!allowVoiceInterruption || interruptionSensitivity <= 25) {
+            // Only enforce interruption gate when the speaker is PHYSICALLY PLAYING audio right now or in reverberation tail or AI is speaking
+            if (inPlaybackOrEchoTail || (aiSpeaking && interruptionSensitivity == 0)) {
+                // If sensitivity == 0 (Complete Lock) or interruption disabled:
+                // Completely protect the tutor speech: 100% block voice interruption and never send mic audio
+                if (!allowVoiceInterruption || interruptionSensitivity == 0) {
                     consecutiveVoiceFrames = 0;
                     reportMicrophoneLevel(rms, gateThreshold, false);
                     continue;
                 }
 
-                // If user enabled high sensitivity interruption:
-                // Require significant volume overcoming phone speakerphone acoustic leakage (>=0.12 - 0.22 RMS)
+                // If sensitivity <= 25 (Heavy Shield Mode):
+                // Require significant volume overcoming phone speakerphone acoustic leakage (>=0.18 RMS)
+                if (interruptionSensitivity <= 25) {
+                    double interruptThreshold = Math.max(0.18, noiseFloor * 3.0);
+                    if (speechCandidate && rms >= interruptThreshold) {
+                        consecutiveVoiceFrames++;
+                        if (consecutiveVoiceFrames >= 12) { // 480ms loud continuous speech
+                            triggerLocalInterruption();
+                            consecutiveVoiceFrames = 0;
+                        }
+                    } else {
+                        consecutiveVoiceFrames = 0;
+                    }
+                    reportMicrophoneLevel(rms, gateThreshold, false);
+                    continue;
+                }
+
+                // If user enabled standard/high sensitivity interruption:
                 double sensitivity = interruptionSensitivity / 100.0;
                 int requiredVoiceFrames = 8 + Math.round((1.0f - (float) sensitivity) * 8.0f); // 320ms - 640ms
                 double baseInterrupt = 0.12 + (1.0 - sensitivity) * 0.10;

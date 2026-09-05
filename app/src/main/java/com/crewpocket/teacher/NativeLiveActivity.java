@@ -1407,8 +1407,14 @@ public class NativeLiveActivity extends Activity {
                     public void onSpeakingChanged(final boolean speaking) {
                         handler.post(new Runnable() {
                             @Override public void run() {
+                                final boolean en = I18n.isEnglish(NativeLiveActivity.this);
                                 if (speaking) {
-                                    updateStatus(CrewTheme.CYAN_400, isShadowingMode ? "🔊 AI 導師講評示範中…" : "🔊 導師回答中…");
+                                    boolean locked = AppConfig.getInterruptionSensitivity(NativeLiveActivity.this) == 0;
+                                    String msg = isShadowingMode
+                                            ? "🔊 AI 導師講評示範中…"
+                                            : (locked ? (en ? "🔊 Tutor Speaking (Interruption Locked)" : "🔊 導師回答中（防插話鎖定）")
+                                                      : (en ? "🔊 Tutor Speaking…" : "🔊 導師回答中…"));
+                                    updateStatus(CrewTheme.CYAN_400, msg);
                                     if (isShadowingMode) {
                                         updateReadingHud();
                                     }

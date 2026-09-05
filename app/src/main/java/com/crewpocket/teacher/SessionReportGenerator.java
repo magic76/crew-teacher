@@ -68,44 +68,54 @@ public class SessionReportGenerator {
             return;
         }
 
-        final String prompt = "You are a professional oral language coach evaluating a completed tutoring session.\n"
-                + "Target Language: " + tutorLang + "\n"
+        final String prompt = "You are a top-tier, uncompromising oral language examiner and rigorous linguistic coach evaluating a student's session transcript.\n"
+                + "Target Practice Language: " + tutorLang + "\n"
                 + "Student Native Language: " + studentLang + "\n"
                 + "Scenario: " + scenario + "\n\n"
                 + "Session Transcript:\n"
                 + fullTranscript + "\n\n"
-                + "Evaluate the student's speaking performance and output a valid JSON object with EXACTLY these keys:\n"
+                + "CRITICAL EVALUATION GUIDELINES (銳評與嚴格標準):\n"
+                + "1. ZERO EMPTY FLATTERY: Do NOT give inflated participation scores. Be realistic, sharp, professional, and brutally honest.\n"
+                + "2. CEFR BENCHMARKED SCORING (0-100 real scale):\n"
+                + "   - 90-100 (C1/C2): Flawless native fluency, rich idioms, complex syntax, natural intonation.\n"
+                + "   - 75-89 (B2): Solid fluency and effective communication, but with occasional minor slips or slight awkwardness.\n"
+                + "   - 55-74 (B1): Communicates basic ideas, but has evident grammar errors, repetitive vocabulary, or Chinglish phrasing.\n"
+                + "   - 35-54 (A2): Fragmented sentences, frequent grammatical breakdowns, limited vocabulary.\n"
+                + "   - 10-34 (A1): Disconnected single words or incomprehensible phrases.\n"
+                + "3. SHARP DIAGNOSTIC SUMMARY (銳評診斷): In 'summary', write a piercing, insightful 2-3 sentence critique in " + studentLang + " directly pinpointing the student's core weaknesses (e.g., Chinglish habits, tense errors, filler word dependence, monotonous rhythm, lack of vocabulary variety).\n"
+                + "4. DIRECT RECASTS (語病抓錯與重塑): Identify exact utterances with flaws, awkward phrasing, or grammatical errors, provide authentic native replacements in " + tutorLang + ", and explain the exact issue in " + studentLang + ".\n\n"
+                + "Output STRICTLY a valid JSON object with EXACTLY these keys:\n"
                 + "{\n"
-                + "  \"overall_score\": (integer 60-98 based on coherence and effort),\n"
-                + "  \"fluency_score\": (integer 60-98),\n"
-                + "  \"vocab_score\": (integer 60-98),\n"
-                + "  \"grammar_score\": (integer 60-98),\n"
-                + "  \"phonetic_score\": (integer 60-98),\n"
-                + "  \"summary\": \"(1-2 sentence overall review in " + studentLang + ")\",\n"
-                + "  \"strengths\": \"(1-2 sentence highlight of what the student did well in " + studentLang + ")\",\n"
+                + "  \"overall_score\": (integer 20-98, strictly calculated),\n"
+                + "  \"fluency_score\": (integer 20-98),\n"
+                + "  \"vocab_score\": (integer 20-98),\n"
+                + "  \"grammar_score\": (integer 20-98),\n"
+                + "  \"phonetic_score\": (integer 20-98),\n"
+                + "  \"summary\": \"(Sharp, direct, honest 2-3 sentence diagnostic critique in " + studentLang + ")\",\n"
+                + "  \"strengths\": \"(Honest, objective strengths without exaggeration in " + studentLang + ")\",\n"
                 + "  \"recasts\": [\n"
                 + "    {\n"
-                + "      \"original\": \"(a student utterance that had minor grammar/vocabulary flaws, or a good attempt)\",\n"
+                + "      \"original\": \"(exact flawed or awkward student utterance)\",\n"
                 + "      \"corrected\": \"(authentic native phrasing in " + tutorLang + ")\",\n"
-                + "      \"explanation\": \"(brief explanation in " + studentLang + ")\"\n"
+                + "      \"explanation\": \"(clear diagnostic explanation of the flaw in " + studentLang + ")\"\n"
                 + "    }\n"
                 + "  ],\n"
                 + "  \"takeaways\": [\n"
-                + "    {\"phrase\": \"(practical phrase 1 in " + tutorLang + ")\", \"translation\": \"(translation in " + studentLang + ")\"},\n"
-                + "    {\"phrase\": \"(practical phrase 2 in " + tutorLang + ")\", \"translation\": \"(translation in " + studentLang + ")\"}\n"
+                + "    {\"phrase\": \"(high-impact native phrase 1 in " + tutorLang + ")\", \"translation\": \"(translation in " + studentLang + ")\"},\n"
+                + "    {\"phrase\": \"(high-impact native phrase 2 in " + tutorLang + ")\", \"translation\": \"(translation in " + studentLang + ")\"}\n"
                 + "  ],\n"
-                + "  \"cheer\": \"(warm, enthusiastic encouragement in " + studentLang + ")\"\n"
+                + "  \"cheer\": \"(constructive, sharp, high-impact advice on what specific habits to fix in " + studentLang + ")\"\n"
                 + "}\n"
                 + "Output strictly ONLY the raw JSON object.";
 
         GeminiApiClient.generateJson(context, prompt, new GeminiApiClient.JsonCallback() {
             @Override
             public void onSuccess(JSONObject obj, String rawText) {
-                record.overallScore = obj.optInt("overall_score", 88);
-                record.fluencyScore = obj.optInt("fluency_score", 85);
-                record.vocabScore = obj.optInt("vocab_score", 86);
-                record.grammarScore = obj.optInt("grammar_score", 87);
-                record.phoneticScore = obj.optInt("phonetic_score", 89);
+                record.overallScore = obj.optInt("overall_score", 72);
+                record.fluencyScore = obj.optInt("fluency_score", 70);
+                record.vocabScore = obj.optInt("vocab_score", 68);
+                record.grammarScore = obj.optInt("grammar_score", 70);
+                record.phoneticScore = obj.optInt("phonetic_score", 72);
                 record.summary = obj.optString("summary", "");
                 record.strengths = obj.optString("strengths", "");
                 record.recastsJson = obj.optJSONArray("recasts") != null ? obj.optJSONArray("recasts").toString() : "[]";

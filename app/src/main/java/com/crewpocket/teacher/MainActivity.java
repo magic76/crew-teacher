@@ -539,8 +539,9 @@ public class MainActivity extends Activity {
 
         // Interruption Shield
         int sensitivity = AppConfig.getInterruptionSensitivity(this);
-        String shieldSummary = sensitivity <= 20 ? (en ? "🛡️ Heavy Shield" : "🛡️ 高強度防打斷")
-                : (sensitivity >= 70 ? (en ? "⚡ Fast Interruption" : "⚡ 極速插話") : (en ? "⚖️ Standard Balanced" : "⚖️ 標準平衡模式"));
+        String shieldSummary = sensitivity == 0 ? (en ? "🚫 Complete Lock (Zero interruption)" : "🚫 完全禁止插話")
+                : (sensitivity <= 25 ? (en ? "🛡️ Heavy Shield" : "🛡️ 高強度防打斷")
+                : (sensitivity >= 70 ? (en ? "⚡ Fast Interruption" : "⚡ 極速插話") : (en ? "⚖️ Standard Balanced" : "⚖️ 標準平衡模式")));
         pageContent.addView(makeActionCard("🛡️", en ? "Anti-Interruption & Echo Shield" : "防插話與環境抗迴音保護", shieldSummary + (en ? " · Tap to adjust" : " · 點擊調整"), CrewTheme.ROSE_400, new View.OnClickListener() {
             @Override public void onClick(View v) { showInterruptionShieldDialog(); }
         }));
@@ -955,13 +956,14 @@ public class MainActivity extends Activity {
     private void showInterruptionShieldDialog() {
         final boolean en = I18n.isEnglish(this);
         final String[] items = {
-                en ? "🛡️ Heavy Shield (Recommended for loudspeaker)" : "🛡️ 高強度防打斷 (不易被外放迴音或周圍雜音打斷，推薦揚聲器外放)",
-                en ? "⚖️ Standard Balanced (Normal speaking allows interruption)" : "⚖️ 標準平衡模式 (預設，正常說話可插話)",
+                en ? "🚫 Complete Lock (AI cannot be interrupted at all by voice)" : "🚫 完全禁止插話 (AI 說話時完全鎖定，完全無法插話，講完才能說)",
+                en ? "🛡️ Heavy Shield (Recommended for loudspeaker, loud voice to interrupt)" : "🛡️ 高強度防打斷 (不易被外放迴音或雜音誤觸，大聲說話可插話)",
+                en ? "⚖️ Standard Balanced (Default, normal speaking allows interruption)" : "⚖️ 標準平衡模式 (預設，正常說話可插話)",
                 en ? "⚡ Fast Interruption (Ideal for earphones/quiet rooms)" : "⚡ 靈敏插話模式 (適合安靜環境或耳機，微弱聲音即插話)"
         };
-        final int[] sensitivities = {20, 50, 80};
+        final int[] sensitivities = {0, 20, 50, 80};
         int current = AppConfig.getInterruptionSensitivity(this);
-        int selected = current <= 25 ? 0 : (current >= 70 ? 2 : 1);
+        int selected = current == 0 ? 0 : (current <= 25 ? 1 : (current >= 70 ? 3 : 2));
 
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         builder.setTitle(en ? "🛡️ Interruption Shield & Sensitivity" : "🛡️ 插話防護與靈敏度");
