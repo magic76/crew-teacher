@@ -1408,17 +1408,11 @@ public class NativeLiveActivity extends Activity {
                         handler.post(new Runnable() {
                             @Override public void run() {
                                 if (speaking) {
-                                    if (currentChatTurn != null && "ai".equals(currentChatTurn.role)) {
-                                        currentChatTurn.translationRevealed = false;
-                                    }
                                     updateStatus(CrewTheme.CYAN_400, isShadowingMode ? "🔊 AI 導師講評示範中…" : "🔊 導師回答中…");
                                     if (isShadowingMode) {
                                         updateReadingHud();
                                     }
                                 } else {
-                                    if (currentChatTurn != null && "ai".equals(currentChatTurn.role)) {
-                                        currentChatTurn.translationRevealed = true;
-                                    }
                                     renderChatCards();
                                     updateStatus(CrewTheme.EMERALD_400, isShadowingMode ? "🎙️ 請大聲朗讀，即時分析中…" : "🎙️ 導師聆聽中，請說話");
                                 }
@@ -1497,7 +1491,7 @@ public class NativeLiveActivity extends Activity {
             }
             currentChatTurn = new ChatTurn();
             currentChatTurn.role = roleKey;
-            currentChatTurn.translationRevealed = !isAi;
+            currentChatTurn.translationRevealed = true;
         }
 
         currentChatTurn.spoken.append(text);

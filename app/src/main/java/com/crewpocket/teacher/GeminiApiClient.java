@@ -129,7 +129,7 @@ public class GeminiApiClient {
 
             JSONObject genConfig = new JSONObject();
             genConfig.put("temperature", 0.1);
-            genConfig.put("maxOutputTokens", 180);
+            genConfig.put("maxOutputTokens", 350);
             try { genConfig.put("responseMimeType", "application/json"); } catch (Exception ignored) {}
             root.put("generationConfig", genConfig);
 
