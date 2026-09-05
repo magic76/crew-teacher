@@ -226,13 +226,13 @@ public class AppConfig {
     }
 
     public static String getAudioOutput(Context context) {
-        if (context == null) return "call";
-        return "media".equals(getPrefs(context).getString(KEY_AUDIO_OUTPUT, "call")) ? "media" : "call";
+        if (context == null) return "media";
+        return "call".equals(getPrefs(context).getString(KEY_AUDIO_OUTPUT, "media")) ? "call" : "media";
     }
 
     public static void setAudioOutput(Context context, String output) {
         if (context == null) return;
-        getPrefs(context).edit().putString(KEY_AUDIO_OUTPUT, "media".equals(output) ? "media" : "call").apply();
+        getPrefs(context).edit().putString(KEY_AUDIO_OUTPUT, "call".equals(output) ? "call" : "media").apply();
     }
 
     // ── 7. User Custom System Prompt ──

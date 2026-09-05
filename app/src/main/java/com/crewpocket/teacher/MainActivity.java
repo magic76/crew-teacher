@@ -27,11 +27,13 @@ import android.widget.Toast;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Stack;
 
 public class MainActivity extends Activity {
     private static final int REQUEST_PERMISSIONS = 201;
 
     private int currentMainTab = 0; // 0: Practice (對話教練), 1: Settings (偏好設定)
+    private final Stack<Integer> tabHistory = new Stack<Integer>();
 
     private TextView statusDot;
     private TextView statusText;
@@ -42,6 +44,28 @@ public class MainActivity extends Activity {
 
     private int dp(float val) {
         return CrewTheme.dp(this, val);
+    }
+
+    private void switchTab(int targetTab, boolean addToHistory) {
+        if (currentMainTab != targetTab) {
+            if (addToHistory) {
+                tabHistory.push(currentMainTab);
+            }
+            currentMainTab = targetTab;
+            renderCurrentPage();
+        }
+    }
+
+    @Override
+    public void onBackPressed() {
+        if (!tabHistory.isEmpty()) {
+            int prevTab = tabHistory.pop();
+            switchTab(prevTab, false);
+        } else if (currentMainTab != 0) {
+            switchTab(0, false);
+        } else {
+            super.onBackPressed();
+        }
     }
 
     @Override
@@ -158,10 +182,7 @@ public class MainActivity extends Activity {
 
         tab.setOnClickListener(new View.OnClickListener() {
             @Override public void onClick(View v) {
-                if (currentMainTab != tabIndex) {
-                    currentMainTab = tabIndex;
-                    renderCurrentPage();
-                }
+                switchTab(tabIndex, true);
             }
         });
 
@@ -379,8 +400,17 @@ public class MainActivity extends Activity {
             @Override public void onClick(View v) { showPersonaDialog(); }
         });
         LinearLayout.LayoutParams p2Lp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
-        p2Lp.setMargins(dp(10), 0, 0, 0);
+        p2Lp.setMargins(dp(8), 0, dp(8), 0);
         grid1.addView(pod2, p2Lp);
+
+        // Floating Bubble Pod
+        boolean isBubbleActive = NativeLiveService.isActive();
+        LinearLayout pod3 = makePodItem("🫧", en ? "Floating Bubble" : "懸浮助教",
+                isBubbleActive ? (en ? "Active" : "運行中") : (en ? "Launch" : "啟動"),
+                Color.parseColor("#38BDF8"), new View.OnClickListener() {
+            @Override public void onClick(View v) { toggleFloatingBubbleService(); }
+        });
+        grid1.addView(pod3, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
         pageContent.addView(grid1);
 
         // 5. Study Tools Row: Starred Phrasebook & Session History
@@ -452,10 +482,20 @@ public class MainActivity extends Activity {
         // Audio Route
         String currentOutput = AppConfig.getAudioOutput(this);
         String outputLabel = "media".equals(currentOutput)
-                ? (en ? "🎵 Media Audio (Bluetooth / High Quality)" : "🎵 媒體音訊 (藍牙耳機高音質)")
-                : (en ? "📞 Voice Call (Hardware AEC & Noise Cancelling)" : "📞 通話音訊 (硬體 AEC 回音消除，推薦)");
+                ? (en ? "🎵 Media Audio (Bluetooth / High Quality, Default)" : "🎵 媒體音訊 (藍牙耳機高音質 · 預設推薦)")
+                : (en ? "📞 Voice Call (Hardware AEC & Noise Cancelling)" : "📞 通話音訊 (硬體 AEC 回音消除)");
         pageContent.addView(makeActionCard("🔊", en ? "Audio Output Channel" : "語音輸出通道", outputLabel, CrewTheme.INDIGO_300, new View.OnClickListener() {
             @Override public void onClick(View v) { showAudioOutputDialog(); }
+        }));
+
+        // Floating Bubble Tutor (桌面懸浮球助教)
+        boolean bubbleRunning = NativeLiveService.isActive();
+        boolean hasOverlayPerm = FloatingBubbleManager.getInstance(this).canDrawOverlays();
+        String bubbleSummary = bubbleRunning ? (en ? "🟢 Running · Tap to manage or stop" : "🟢 運行中 · 點擊管理或關閉")
+                : (hasOverlayPerm ? (en ? "⚪ Ready · Tap to launch overlay bubble" : "⚪ 待命中 · 點擊一鍵啟動懸浮球")
+                : (en ? "⚠️ Permission Required · Tap to grant overlay" : "⚠️ 需開啟懸浮視窗權限 · 點擊前往設定"));
+        pageContent.addView(makeActionCard("🫧", en ? "Floating Bubble Tutor" : "桌面懸浮球助教 (跨 App 練習)", bubbleSummary, Color.parseColor("#38BDF8"), new View.OnClickListener() {
+            @Override public void onClick(View v) { showFloatingBubbleDialog(); }
         }));
 
         // Section 2: Tutor & Language Settings
@@ -951,6 +991,91 @@ public class MainActivity extends Activity {
             statusDetail.setText(en ? "Gemini 3.1 Live Preview · Tap Start above" : "Gemini 3.1 Live Preview 語音引擎 · 點擊開始練習");
             statusDetail.setTextColor(Color.parseColor("#6EE7B7"));
         }
+    }
+
+    private void toggleFloatingBubbleService() {
+        final boolean en = I18n.isEnglish(this);
+        if (!FloatingBubbleManager.getInstance(this).canDrawOverlays()) {
+            AlertDialog.Builder builder = new AlertDialog.Builder(this);
+            builder.setTitle(en ? "🔑 Overlay Permission Required" : "🔑 需開啟懸浮視窗權限");
+            builder.setMessage(en ? "To display the floating AI tutor bubble over other apps (e.g. YouTube, Browser, Social Media), please grant 'Display over other apps' permission."
+                    : "要在其他 App（如 YouTube、瀏覽器、社群軟體）上方顯示 AI 外語懸浮球並進行即時口說練習，需要先開啟「允許顯示在其他應用程式上層」權限。");
+            builder.setPositiveButton(en ? "Go to Settings" : "前往開啟權限", new DialogInterface.OnClickListener() {
+                @Override public void onClick(DialogInterface dialog, int which) {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                        try {
+                            Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:" + getPackageName()));
+                            startActivity(intent);
+                        } catch (Exception ignored) {}
+                    }
+                }
+            });
+            builder.setNegativeButton(en ? "Cancel" : "取消", null);
+            builder.show();
+            return;
+        }
+
+        if (NativeLiveService.isActive()) {
+            NativeLiveService.stop(this);
+            Toast.makeText(this, en ? "Floating Bubble stopped" : "已關閉懸浮球助教", Toast.LENGTH_SHORT).show();
+        } else {
+            String apiKey = AppConfig.getGeminiApiKey(this);
+            if (apiKey.isEmpty()) {
+                Toast.makeText(this, en ? "Please configure Gemini API Key first" : "請先在偏好設定中填入 Gemini API Key", Toast.LENGTH_LONG).show();
+                showApiKeyDialog();
+                return;
+            }
+            NativeLiveService.start(this);
+            Toast.makeText(this, en ? "Floating Bubble started! Tap bubble to talk anytime" : "🚀 懸浮球助教已啟動！點擊懸浮球隨時展開語音對話", Toast.LENGTH_SHORT).show();
+        }
+        renderCurrentPage();
+    }
+
+    private void showFloatingBubbleDialog() {
+        final boolean en = I18n.isEnglish(this);
+        boolean hasOverlay = FloatingBubbleManager.getInstance(this).canDrawOverlays();
+        boolean isRunning = NativeLiveService.isActive();
+
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle(en ? "🫧 Floating Bubble Tutor" : "🫧 桌面懸浮球外語助教");
+
+        StringBuilder msg = new StringBuilder();
+        msg.append(en ? "The Floating Bubble allows you to practice speaking anywhere on your phone while browsing articles, watching videos, or social chatting.\n\n"
+                      : "桌面懸浮球讓您在手機任何畫面（看英文文章、看 YouTube、跨 App 聊天）隨時點擊外師展開 1 對 1 即時語音互動與同步字幕翻譯。\n\n");
+        msg.append(en ? "• Status: " : "• 運行狀態：").append(isRunning ? (en ? "🟢 Running" : "🟢 運行中") : (en ? "⚪ Inactive" : "⚪ 待命中")).append("\n");
+        msg.append(en ? "• Overlay Permission: " : "• 懸浮視窗權限：").append(hasOverlay ? (en ? "✅ Granted" : "✅ 已授權") : (en ? "❌ Not Granted" : "❌ 尚未授權"));
+
+        builder.setMessage(msg.toString());
+
+        if (isRunning) {
+            builder.setPositiveButton(en ? "⏹️ Stop Bubble" : "⏹️ 關閉懸浮球", new DialogInterface.OnClickListener() {
+                @Override public void onClick(DialogInterface dialog, int which) {
+                    NativeLiveService.stop(MainActivity.this);
+                    renderCurrentPage();
+                    Toast.makeText(MainActivity.this, en ? "Floating Bubble stopped" : "已關閉懸浮球助教", Toast.LENGTH_SHORT).show();
+                }
+            });
+        } else {
+            builder.setPositiveButton(en ? "🚀 Launch Bubble" : "🚀 啟動懸浮球", new DialogInterface.OnClickListener() {
+                @Override public void onClick(DialogInterface dialog, int which) {
+                    toggleFloatingBubbleService();
+                }
+            });
+        }
+
+        builder.setNeutralButton(en ? "🔑 Permission" : "🔑 權限設定", new DialogInterface.OnClickListener() {
+            @Override public void onClick(DialogInterface dialog, int which) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    try {
+                        Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:" + getPackageName()));
+                        startActivity(intent);
+                    } catch (Exception ignored) {}
+                }
+            }
+        });
+
+        builder.setNegativeButton(en ? "Close" : "關閉", null);
+        builder.show();
     }
 
     private void checkPermissions() {
