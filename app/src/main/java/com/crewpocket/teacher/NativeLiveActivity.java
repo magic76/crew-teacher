@@ -105,6 +105,7 @@ public class NativeLiveActivity extends Activity {
             currentLesson = CourseManager.getLessonById(lessonId);
             if (currentLesson != null) {
                 isLessonMode = true;
+                isShadowingMode = false; // Lesson mode is structured interactive roleplay conversation, not shadowing
                 for (CourseModel.Mission m : currentLesson.missions) {
                     m.achieved = false;
                 }
@@ -399,37 +400,68 @@ public class NativeLiveActivity extends Activity {
             iceRow.setOrientation(LinearLayout.HORIZONTAL);
             iceRow.setGravity(Gravity.CENTER_VERTICAL);
 
-            String tutorLang = AppConfig.getTutorLanguage(this);
-            String persona = AppConfig.getTutorPersona(this);
-            List<IcebreakerManager.Icebreaker> icebreakers = IcebreakerManager.getIcebreakersForScenario(persona, tutorLang);
+            if (isLessonMode && currentLesson != null && currentLesson.warmupPhrases != null && !currentLesson.warmupPhrases.isEmpty()) {
+                for (final CourseModel.WarmupPhrase wp : currentLesson.warmupPhrases) {
+                    LinearLayout chip = new LinearLayout(this);
+                    chip.setOrientation(LinearLayout.HORIZONTAL);
+                    chip.setGravity(Gravity.CENTER_VERTICAL);
+                    chip.setPadding(dp(12), dp(7), dp(12), dp(7));
+                    GradientDrawable cBg = new GradientDrawable();
+                    cBg.setColor(Color.parseColor("#1E293B"));
+                    cBg.setCornerRadius(dp(16));
+                    cBg.setStroke(dp(1), Color.parseColor("#3B82F6"));
+                    chip.setBackground(cBg);
+                    LinearLayout.LayoutParams cLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                    cLp.setMargins(0, 0, dp(8), 0);
+                    chip.setLayoutParams(cLp);
 
-            for (final IcebreakerManager.Icebreaker ib : icebreakers) {
-                LinearLayout chip = new LinearLayout(this);
-                chip.setOrientation(LinearLayout.HORIZONTAL);
-                chip.setGravity(Gravity.CENTER_VERTICAL);
-                chip.setPadding(dp(12), dp(7), dp(12), dp(7));
-                GradientDrawable cBg = new GradientDrawable();
-                cBg.setColor(Color.parseColor("#1E293B"));
-                cBg.setCornerRadius(dp(16));
-                cBg.setStroke(dp(1), Color.parseColor("#334155"));
-                chip.setBackground(cBg);
-                LinearLayout.LayoutParams cLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-                cLp.setMargins(0, 0, dp(8), 0);
-                chip.setLayoutParams(cLp);
+                    TextView cText = new TextView(this);
+                    cText.setText("⚡ " + wp.en);
+                    cText.setTextSize(11);
+                    cText.setTextColor(Color.parseColor("#E0E7FF"));
+                    chip.addView(cText);
 
-                TextView cText = new TextView(this);
-                cText.setText(ib.emoji + " " + ib.targetPhrase);
-                cText.setTextSize(11);
-                cText.setTextColor(Color.parseColor("#E0E7FF"));
-                chip.addView(cText);
+                    chip.setOnClickListener(new View.OnClickListener() {
+                        @Override public void onClick(View v) {
+                            speakWord(wp.en);
+                            Toast.makeText(NativeLiveActivity.this, "💡 " + (en ? wp.en : wp.zh) + (wp.ipa != null && !wp.ipa.isEmpty() ? " [" + wp.ipa + "]" : "") + "\n(" + (en ? "Tap to hear, say into mic!" : "點擊聽發音，可直接對麥克風說！") + ")", Toast.LENGTH_SHORT).show();
+                        }
+                    });
+                    iceRow.addView(chip);
+                }
+            } else {
+                String tutorLang = AppConfig.getTutorLanguage(this);
+                String persona = AppConfig.getTutorPersona(this);
+                List<IcebreakerManager.Icebreaker> icebreakers = IcebreakerManager.getIcebreakersForScenario(persona, tutorLang);
 
-                chip.setOnClickListener(new View.OnClickListener() {
-                    @Override public void onClick(View v) {
-                        speakWord(ib.targetPhrase);
-                        Toast.makeText(NativeLiveActivity.this, "💡 " + ib.nativeHint + "\n(" + (en ? "Read aloud into mic to start!" : "可直接對麥克風朗讀開始！") + ")", Toast.LENGTH_SHORT).show();
-                    }
-                });
-                iceRow.addView(chip);
+                for (final IcebreakerManager.Icebreaker ib : icebreakers) {
+                    LinearLayout chip = new LinearLayout(this);
+                    chip.setOrientation(LinearLayout.HORIZONTAL);
+                    chip.setGravity(Gravity.CENTER_VERTICAL);
+                    chip.setPadding(dp(12), dp(7), dp(12), dp(7));
+                    GradientDrawable cBg = new GradientDrawable();
+                    cBg.setColor(Color.parseColor("#1E293B"));
+                    cBg.setCornerRadius(dp(16));
+                    cBg.setStroke(dp(1), Color.parseColor("#334155"));
+                    chip.setBackground(cBg);
+                    LinearLayout.LayoutParams cLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                    cLp.setMargins(0, 0, dp(8), 0);
+                    chip.setLayoutParams(cLp);
+
+                    TextView cText = new TextView(this);
+                    cText.setText(ib.emoji + " " + ib.targetPhrase);
+                    cText.setTextSize(11);
+                    cText.setTextColor(Color.parseColor("#E0E7FF"));
+                    chip.addView(cText);
+
+                    chip.setOnClickListener(new View.OnClickListener() {
+                        @Override public void onClick(View v) {
+                            speakWord(ib.targetPhrase);
+                            Toast.makeText(NativeLiveActivity.this, "💡 " + ib.nativeHint + "\n(" + (en ? "Read aloud into mic to start!" : "可直接對麥克風朗讀開始！") + ")", Toast.LENGTH_SHORT).show();
+                        }
+                    });
+                    iceRow.addView(chip);
+                }
             }
             iceScroll.addView(iceRow);
             root.addView(iceScroll);
