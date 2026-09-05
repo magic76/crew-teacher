@@ -239,6 +239,29 @@ public class MainActivity extends Activity {
 
         headerRow.addView(brandTextCol, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
 
+        // Guide / Onboarding Button
+        Button guideBtn = new Button(this);
+        guideBtn.setText(en ? "🧭 Guide" : "🧭 指南");
+        guideBtn.setTextSize(11);
+        guideBtn.setTextColor(Color.parseColor("#E0E7FF"));
+        guideBtn.setTypeface(Typeface.DEFAULT_BOLD);
+        GradientDrawable gBg = new GradientDrawable();
+        gBg.setColor(Color.parseColor("#312E81")); // Indigo 900
+        gBg.setCornerRadius(dp(12));
+        gBg.setStroke(dp(1), Color.parseColor("#6366F1")); // Indigo 500
+        guideBtn.setBackground(gBg);
+        LinearLayout.LayoutParams gLp = new LinearLayout.LayoutParams(dp(68), dp(34));
+        gLp.setMargins(0, 0, dp(6), 0);
+        guideBtn.setLayoutParams(gLp);
+        guideBtn.setOnClickListener(new View.OnClickListener() {
+            @Override public void onClick(View v) {
+                WelcomeGuideDialog.show(MainActivity.this, new Runnable() {
+                    @Override public void run() { renderCurrentPage(); }
+                });
+            }
+        });
+        headerRow.addView(guideBtn);
+
         // Quick Language Switch Pill Button
         Button langToggleBtn = new Button(this);
         langToggleBtn.setText(en ? "🇨🇳 中文" : "🇺🇸 EN");
@@ -255,7 +278,7 @@ public class MainActivity extends Activity {
                 renderCurrentPage();
             }
         });
-        headerRow.addView(langToggleBtn, new LinearLayout.LayoutParams(dp(72), dp(34)));
+        headerRow.addView(langToggleBtn, new LinearLayout.LayoutParams(dp(68), dp(34)));
         pageContent.addView(headerRow);
 
         // 2. Status Card Banner
@@ -484,13 +507,37 @@ public class MainActivity extends Activity {
     // ⚙️ TAB 1: 偏好設定 / Settings Hub
     // ══════════════════════════════════════════════════════════════════════════
     private void renderSettingsPage(final boolean en) {
+        LinearLayout sHeadRow = new LinearLayout(this);
+        sHeadRow.setOrientation(LinearLayout.HORIZONTAL);
+        sHeadRow.setGravity(Gravity.CENTER_VERTICAL);
+        sHeadRow.setPadding(0, 0, 0, dp(14));
+
         TextView heading = new TextView(this);
-        heading.setText(en ? "⚙️ Preferences & Configuration" : "⚙️ 偏好設定與語音配置");
+        heading.setText(en ? "⚙️ Preferences" : "⚙️ 偏好設定與語音配置");
         heading.setTextSize(18);
         heading.setTextColor(CrewTheme.TEXT_PRIMARY);
         heading.setTypeface(Typeface.DEFAULT_BOLD);
-        heading.setPadding(0, 0, 0, dp(14));
-        pageContent.addView(heading);
+        sHeadRow.addView(heading, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+
+        Button guideBtn = new Button(this);
+        guideBtn.setText(en ? "🧭 Guide" : "🧭 入學指南");
+        guideBtn.setTextSize(11);
+        guideBtn.setTextColor(Color.parseColor("#E0E7FF"));
+        guideBtn.setTypeface(Typeface.DEFAULT_BOLD);
+        GradientDrawable gBg = new GradientDrawable();
+        gBg.setColor(Color.parseColor("#312E81")); // Indigo 900
+        gBg.setCornerRadius(dp(12));
+        gBg.setStroke(dp(1), Color.parseColor("#6366F1")); // Indigo 500
+        guideBtn.setBackground(gBg);
+        guideBtn.setOnClickListener(new View.OnClickListener() {
+            @Override public void onClick(View v) {
+                WelcomeGuideDialog.show(MainActivity.this, new Runnable() {
+                    @Override public void run() { renderCurrentPage(); }
+                });
+            }
+        });
+        sHeadRow.addView(guideBtn, new LinearLayout.LayoutParams(dp(84), dp(34)));
+        pageContent.addView(sHeadRow);
 
         // Section 1: Audio & Hardware
         TextView audioSec = new TextView(this);

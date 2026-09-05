@@ -162,7 +162,24 @@ public class NativeLiveActivity extends Activity {
         title.setTextColor(Color.WHITE);
         title.setTextSize(16);
         title.setTypeface(Typeface.DEFAULT_BOLD);
-        header.addView(title);
+        header.addView(title, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+
+        Button topGuideBtn = new Button(this);
+        topGuideBtn.setText(en ? "🧭 Guide" : "🧭 導覽");
+        topGuideBtn.setTextSize(11);
+        topGuideBtn.setTextColor(Color.parseColor("#E0E7FF"));
+        topGuideBtn.setTypeface(Typeface.DEFAULT_BOLD);
+        GradientDrawable tgBg = new GradientDrawable();
+        tgBg.setColor(Color.parseColor("#312E81"));
+        tgBg.setCornerRadius(dp(12));
+        tgBg.setStroke(dp(1), Color.parseColor("#6366F1"));
+        topGuideBtn.setBackground(tgBg);
+        topGuideBtn.setOnClickListener(new View.OnClickListener() {
+            @Override public void onClick(View v) {
+                WelcomeGuideDialog.show(NativeLiveActivity.this, null);
+            }
+        });
+        header.addView(topGuideBtn, new LinearLayout.LayoutParams(dp(68), dp(32)));
         root.addView(header);
 
         // 2. Status Row
