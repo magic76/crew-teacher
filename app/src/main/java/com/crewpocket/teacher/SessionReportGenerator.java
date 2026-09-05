@@ -26,10 +26,9 @@ public class SessionReportGenerator {
     private static final String TAG = "SessionReportGen";
 
     private static final String[] CANDIDATE_MODELS = {
-            "gemini-2.5-flash",
-            "gemini-3.6-flash",
             "gemini-2.0-flash",
-            "gemini-1.5-flash"
+            "gemini-1.5-flash",
+            "gemini-1.5-pro"
     };
 
     private static final OkHttpClient HTTP_CLIENT = new OkHttpClient.Builder()
@@ -214,13 +213,36 @@ public class SessionReportGenerator {
     }
 
     private static void populateDefaultScores(LearningDataManager.SessionRecord record, String studentLang) {
-        record.overallScore = 85;
-        record.fluencyScore = 82;
-        record.vocabScore = 86;
-        record.grammarScore = 84;
-        record.phoneticScore = 88;
-        record.summary = "本次練習積極開口，與 AI 導師完成了 " + record.userTurns + " 輪對話！";
-        record.strengths = "勇於表達觀點，發音清晰，持續保持練習必能快速突破！";
+        int words = 0;
+        if (record.fullTranscript != null && !record.fullTranscript.isEmpty()) {
+            String[] lines = record.fullTranscript.split("\n");
+            for (String line : lines) {
+                if (line.startsWith("Student:")) {
+                    words += line.substring(8).trim().split("\s+").length;
+                }
+            }
+        }
+
+        int baseScore;
+        if (record.userTurns <= 0 || words < 3) {
+            baseScore = 58;
+        } else if (record.userTurns == 1 && words < 10) {
+            baseScore = 68;
+        } else if (record.userTurns <= 3 && words < 25) {
+            baseScore = 75;
+        } else if (record.userTurns <= 6) {
+            baseScore = 83;
+        } else {
+            baseScore = Math.min(96, 84 + (record.userTurns - 6) * 2 + (words / 35));
+        }
+
+        record.overallScore = baseScore;
+        record.fluencyScore = Math.max(45, Math.min(98, baseScore - 2 + (record.durationSeconds > 60 ? 4 : -3)));
+        record.vocabScore = Math.max(45, Math.min(98, baseScore + (words > 25 ? 3 : -4)));
+        record.grammarScore = Math.max(45, Math.min(98, baseScore - 3));
+        record.phoneticScore = Math.max(45, Math.min(98, baseScore + 2));
+        record.summary = "本次練習完成了 " + record.userTurns + " 輪互動（累計說出約 " + words + " 個單字），發言表現良好！";
+        record.strengths = words > 20 ? "句子結構完整，能夠主動引導並回應 AI 導師！" : "勇於開口嘗試，持續累積詞彙量將更為流暢！";
         record.cheer = "太棒了！堅持每天開口練習，自信心與流暢度正在穩步提升！";
     }
 }
