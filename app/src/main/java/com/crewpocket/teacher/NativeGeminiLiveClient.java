@@ -348,6 +348,19 @@ public class NativeGeminiLiveClient {
                             interruptionHandler.postDelayed(new Runnable() {
                                 @Override public void run() { stop(); }
                             }, 500);
+                        } else if ("update_subtitles".equals(name)) {
+                            JSONObject args = fc.optJSONObject("args");
+                            if (args != null) {
+                                String trans = args.optString("translation", "").trim();
+                                String vocab = args.optString("key_vocab", "").trim();
+                                String reply = args.optString("suggested_reply", "").trim();
+                                java.util.List<String> hints = new java.util.ArrayList<String>();
+                                if (!reply.isEmpty()) hints.add(reply);
+                                if (!trans.isEmpty()) {
+                                    listener.onSubtitleData("", trans, vocab, hints);
+                                }
+                            }
+                            sendToolResponse(id, name, new JSONObject().put("status", "ok"));
                         } else {
                             sendToolResponse(id, name, new JSONObject().put("status", "ok"));
                         }
@@ -412,6 +425,19 @@ public class NativeGeminiLiveClient {
         JSONArray tools = new JSONArray();
         tools.put(new JSONObject().put("name", "end_voice_session")
                 .put("description", "End the tutoring voice call when the user says goodbye, hang up, or exit (e.g. 結束, 掛斷, 再見, 先這樣, bye)."));
+
+        JSONObject subParams = new JSONObject();
+        subParams.put("type", "OBJECT");
+        JSONObject subProps = new JSONObject();
+        subProps.put("translation", new JSONObject().put("type", "STRING").put("description", "Accurate, natural translation of your spoken sentence in " + nativeLang));
+        subProps.put("key_vocab", new JSONObject().put("type", "STRING").put("description", "1 key vocabulary word with pronunciation tip or meaning in " + nativeLang));
+        subProps.put("suggested_reply", new JSONObject().put("type", "STRING").put("description", "1 sample natural sentence the student can say next in " + langName));
+        subParams.put("properties", subProps);
+        subParams.put("required", new JSONArray().put("translation"));
+
+        tools.put(new JSONObject().put("name", "update_subtitles")
+                .put("description", "Provide instant student-side bilingual subtitle, translation, and quick reply suggestion for each turn you speak. Call this alongside or right after speaking.")
+                .put("parameters", subParams));
 
         setup.put("tools", new JSONArray().put(new JSONObject().put("functionDeclarations", tools)));
 
@@ -483,10 +509,11 @@ public class NativeGeminiLiveClient {
             modeInstruction = "【Teaching Mode: BILINGUAL CONVERSATIONAL PRACTICE (雙語對照教學模式)】\n"
                     + "1. AUDIO RULE (Pure Target Language): Speak 100% in natural, fluent, native " + langName + " (絕對嚴禁在語音中說出 " + nativeLang + "！耳聽純外語沉浸).\n"
                     + "2. Keep spoken responses conversational and concise (1-2 sentences in " + langName + ").\n"
-                    + "3. Always end your spoken sentence with an engaging open-ended question in " + langName + " so the student has an easy cue to reply in " + langName + ".";
+                    + "3. Always call 'update_subtitles' tool with the natural " + nativeLang + " translation of what you just spoke, key vocabulary focus, and 1 suggested student reply.\n"
+                    + "4. Always end your spoken sentence with an engaging open-ended question in " + langName + " so the student has an easy cue to reply in " + langName + ".";
             rules = "CRITICAL BILINGUAL RULES:\n"
                     + "1. 100% PURE " + langName + " IN AUDIO: Never speak " + nativeLang + " in the audio stream.\n"
-                    + "2. Keep spoken responses natural and concise (1-2 sentences in " + langName + ").\n"
+                    + "2. Always call 'update_subtitles' function for instant student onscreen subtitles and notes.\n"
                     + "3. ACTIVE RECAST: If the student makes mistakes in " + langName + ", model the corrected sentence naturally in " + langName + ".\n"
                     + "4. When the student says goodbye or wants to exit, say farewell in " + langName + " and call 'end_voice_session'.";
         }
