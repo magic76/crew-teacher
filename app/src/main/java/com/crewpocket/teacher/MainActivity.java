@@ -20,11 +20,17 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import org.json.JSONArray;
+import org.json.JSONObject;
+
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 
 public class MainActivity extends Activity {
@@ -153,6 +159,92 @@ public class MainActivity extends Activity {
 
         statusCard.addView(statusTextCol, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
         pageContent.addView(statusCard);
+
+        // 2.5 【今日口說打卡與學習目標】Streak & Progress Card
+        LearningDataManager.StreakInfo streak = LearningDataManager.getStreakInfo(this);
+        LinearLayout streakCard = new LinearLayout(this);
+        streakCard.setOrientation(LinearLayout.VERTICAL);
+        streakCard.setPadding(dp(14), dp(12), dp(14), dp(12));
+        GradientDrawable skBg = new GradientDrawable();
+        skBg.setColors(new int[]{Color.parseColor("#1E1B4B"), Color.parseColor("#0F172A")});
+        skBg.setOrientation(GradientDrawable.Orientation.TL_BR);
+        skBg.setCornerRadius(dp(16));
+        skBg.setStroke(dp(1), Color.parseColor("#4338CA"));
+        streakCard.setBackground(skBg);
+        LinearLayout.LayoutParams skLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        skLp.setMargins(0, 0, 0, dp(14));
+        streakCard.setLayoutParams(skLp);
+
+        LinearLayout skTopRow = new LinearLayout(this);
+        skTopRow.setOrientation(LinearLayout.HORIZONTAL);
+        skTopRow.setGravity(Gravity.CENTER_VERTICAL);
+
+        TextView streakBadge = new TextView(this);
+        streakBadge.setText(streak.streakDays > 0
+                ? ("🔥 " + (en ? "Streak: " : "連續打卡 ") + streak.streakDays + (en ? " Days" : " 天"))
+                : ("🔥 " + (en ? "Start Your Streak Today!" : "今日開口，啟動連續打卡！")));
+        streakBadge.setTextSize(13);
+        streakBadge.setTextColor(Color.parseColor("#F59E0B"));
+        streakBadge.setTypeface(Typeface.DEFAULT_BOLD);
+        skTopRow.addView(streakBadge, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+
+        TextView timeBadge = new TextView(this);
+        timeBadge.setText("⏱️ " + streak.formattedTodayTime);
+        timeBadge.setTextSize(11);
+        timeBadge.setTextColor(Color.parseColor("#A5B4FC"));
+        skTopRow.addView(timeBadge);
+        streakCard.addView(skTopRow);
+
+        // Progress text row
+        LinearLayout progTextRow = new LinearLayout(this);
+        progTextRow.setOrientation(LinearLayout.HORIZONTAL);
+        progTextRow.setGravity(Gravity.CENTER_VERTICAL);
+        progTextRow.setPadding(0, dp(8), 0, dp(4));
+
+        TextView progTitle = new TextView(this);
+        progTitle.setText(en ? "🎯 Daily Goal Progress" : "🎯 今日口說進度");
+        progTitle.setTextSize(11);
+        progTitle.setTextColor(Color.parseColor("#94A3B8"));
+        progTextRow.addView(progTitle, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+
+        TextView progCount = new TextView(this);
+        progCount.setText(streak.todayTurns + " / " + streak.dailyGoalTurns + (en ? " turns" : " 句") + (streak.isGoalCompleted ? " (✅ 完成)" : ""));
+        progCount.setTextSize(11);
+        progCount.setTextColor(streak.isGoalCompleted ? Color.parseColor("#34D399") : Color.parseColor("#38BDF8"));
+        progCount.setTypeface(Typeface.DEFAULT_BOLD);
+        progTextRow.addView(progCount);
+        streakCard.addView(progTextRow);
+
+        // Visual Progress Bar
+        FrameLayout progTrack = new FrameLayout(this);
+        GradientDrawable ptBg = new GradientDrawable();
+        ptBg.setColor(Color.parseColor("#312E81"));
+        ptBg.setCornerRadius(dp(4));
+        progTrack.setBackground(ptBg);
+        LinearLayout.LayoutParams ptLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(6));
+        progTrack.setLayoutParams(ptLp);
+
+        final View progFill = new View(this);
+        GradientDrawable pfBg = new GradientDrawable();
+        pfBg.setColors(new int[]{Color.parseColor("#38BDF8"), Color.parseColor("#6366F1")});
+        pfBg.setOrientation(GradientDrawable.Orientation.LEFT_RIGHT);
+        pfBg.setCornerRadius(dp(4));
+        progFill.setBackground(pfBg);
+        final int percent = Math.min(100, Math.max(0, (int) (streak.todayTurns * 100.0 / Math.max(1, streak.dailyGoalTurns))));
+        progTrack.addView(progFill);
+        progTrack.post(new Runnable() {
+            @Override public void run() {
+                int parentW = ((View) progFill.getParent()).getWidth();
+                if (parentW > 0) {
+                    FrameLayout.LayoutParams p = (FrameLayout.LayoutParams) progFill.getLayoutParams();
+                    p.width = (int) (parentW * (percent / 100.0));
+                    p.height = ViewGroup.LayoutParams.MATCH_PARENT;
+                    progFill.setLayoutParams(p);
+                }
+            }
+        });
+        streakCard.addView(progTrack);
+        pageContent.addView(streakCard);
 
         // 3. 【課前 3 鍵配置艙】Lesson Pod (語言 + 難易度 + 情境)
         LinearLayout lessonPod = new LinearLayout(this);
@@ -326,6 +418,29 @@ public class MainActivity extends Activity {
         bubbleCard.addView(bToggleBtn, new LinearLayout.LayoutParams(dp(64), dp(34)));
 
         pageContent.addView(bubbleCard);
+
+        // 5.5 【個人學習庫與成效記錄】Phrasebook & Session History
+        TextView learningHeading = new TextView(this);
+        learningHeading.setText(en ? "📚 Learning Hub & Diagnostic History" : "📚 個人學習庫與成效記錄");
+        learningHeading.setTextSize(12);
+        learningHeading.setTextColor(Color.parseColor("#64748B"));
+        learningHeading.setTypeface(Typeface.DEFAULT_BOLD);
+        learningHeading.setPadding(0, dp(4), 0, dp(8));
+        pageContent.addView(learningHeading);
+
+        int starredCount = LearningDataManager.getStarredItems(this).size();
+        pageContent.addView(makeActionCard("⭐", en ? "My Starred Phrasebook & Vocab" : "⭐ 我的個人生詞與金句本",
+                (starredCount > 0 ? ((en ? "Collected " : "已收藏 ") + starredCount + (en ? " items" : " 條精選金句/生詞")) : (en ? "0 items · Star phrases in practice" : "尚未收藏 · 練習中點擊 ⭐ 即可收藏")) + (en ? " · Tap to review & listen" : " · 點擊複習與發音"),
+                Color.parseColor("#F59E0B"), new View.OnClickListener() {
+            @Override public void onClick(View v) { showStarredPhrasebookDialog(); }
+        }));
+
+        int sessionCount = LearningDataManager.getSessionHistory(this).size();
+        pageContent.addView(makeActionCard("📊", en ? "Session History & Diagnostics" : "📊 歷史對話與成效報告",
+                (sessionCount > 0 ? ((en ? "Total " : "累計 ") + sessionCount + (en ? " tutoring sessions recorded" : " 次對話課堂記錄")) : (en ? "No sessions yet" : "尚無記錄 · 完成練習自動生成")) + (en ? " · Tap to review" : " · 點擊查看診斷"),
+                Color.parseColor("#38BDF8"), new View.OnClickListener() {
+            @Override public void onClick(View v) { showSessionHistoryDialog(); }
+        }));
 
         // 6. 【底層進階設定抽屜列】Advanced Settings Footer Row
         TextView advHeading = new TextView(this);
@@ -1074,6 +1189,872 @@ public class MainActivity extends Activity {
         builder.setView(root);
         builder.setNegativeButton(en ? "Cancel" : "取消", null);
         dialogRef[0] = builder.show();
+    }
+
+    private void speakTts(final String text) {
+        if (text == null || text.trim().isEmpty()) return;
+        final String clean = text.trim();
+        if (previewTts == null) {
+            previewTts = new TextToSpeech(this, new TextToSpeech.OnInitListener() {
+                @Override public void onInit(int status) {
+                    if (status == TextToSpeech.SUCCESS && previewTts != null) {
+                        previewTts.setLanguage(Locale.US);
+                        previewTts.speak(clean, TextToSpeech.QUEUE_FLUSH, null, "tts_" + System.currentTimeMillis());
+                    }
+                }
+            });
+        } else {
+            try {
+                previewTts.stop();
+                previewTts.setLanguage(Locale.US);
+                previewTts.speak(clean, TextToSpeech.QUEUE_FLUSH, null, "tts_" + System.currentTimeMillis());
+            } catch (Exception ignored) {}
+        }
+    }
+
+    private void showStarredPhrasebookDialog() {
+        final boolean en = I18n.isEnglish(this);
+        final android.app.Dialog dialog = new android.app.Dialog(this, android.R.style.Theme_Black_NoTitleBar_Fullscreen);
+        if (dialog.getWindow() != null) {
+            dialog.getWindow().setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(Color.parseColor("#D0000000")));
+        }
+
+        ScrollView scroll = new ScrollView(this);
+        scroll.setFillViewport(true);
+        scroll.setPadding(dp(16), dp(24), dp(16), dp(24));
+
+        final LinearLayout container = new LinearLayout(this);
+        container.setOrientation(LinearLayout.VERTICAL);
+        container.setPadding(dp(18), dp(18), dp(18), dp(18));
+        GradientDrawable cBg = new GradientDrawable();
+        cBg.setColor(Color.parseColor("#0F172A"));
+        cBg.setCornerRadius(dp(20));
+        cBg.setStroke(dp(1), Color.parseColor("#334155"));
+        container.setBackground(cBg);
+
+        final Runnable renderList = new Runnable() {
+            @Override public void run() {
+                container.removeAllViews();
+
+                // Header
+                LinearLayout headRow = new LinearLayout(MainActivity.this);
+                headRow.setOrientation(LinearLayout.HORIZONTAL);
+                headRow.setGravity(Gravity.CENTER_VERTICAL);
+
+                TextView title = new TextView(MainActivity.this);
+                title.setText(en ? "⭐ My Starred Phrasebook" : "⭐ 我的個人生詞與金句本");
+                title.setTextSize(16);
+                title.setTextColor(Color.WHITE);
+                title.setTypeface(Typeface.DEFAULT_BOLD);
+                headRow.addView(title, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+
+                TextView closeBtn = new TextView(MainActivity.this);
+                closeBtn.setText("✕");
+                closeBtn.setTextSize(18);
+                closeBtn.setTextColor(Color.parseColor("#94A3B8"));
+                closeBtn.setPadding(dp(10), dp(4), dp(4), dp(4));
+                closeBtn.setOnClickListener(new View.OnClickListener() {
+                    @Override public void onClick(View v) {
+                        dialog.dismiss();
+                        renderHomePage();
+                    }
+                });
+                headRow.addView(closeBtn);
+                container.addView(headRow);
+
+                final List<LearningDataManager.StarredItem> items = LearningDataManager.getStarredItems(MainActivity.this);
+
+                TextView subtitle = new TextView(MainActivity.this);
+                subtitle.setText(en ? ("Collected " + items.size() + " items · Tap 🔊 to listen to authentic pronunciation")
+                        : ("累計收藏 " + items.size() + " 條精選金句與生詞 · 點擊 🔊 聽母語發音"));
+                subtitle.setTextSize(11);
+                subtitle.setTextColor(Color.parseColor("#94A3B8"));
+                subtitle.setPadding(0, dp(4), 0, dp(12));
+                container.addView(subtitle);
+
+                if (items.isEmpty()) {
+                    LinearLayout emptyCard = new LinearLayout(MainActivity.this);
+                    emptyCard.setOrientation(LinearLayout.VERTICAL);
+                    emptyCard.setPadding(dp(20), dp(24), dp(20), dp(24));
+                    emptyCard.setGravity(Gravity.CENTER);
+                    GradientDrawable eBg = new GradientDrawable();
+                    eBg.setColor(Color.parseColor("#1E293B"));
+                    eBg.setCornerRadius(dp(14));
+                    emptyCard.setBackground(eBg);
+
+                    TextView eIcon = new TextView(MainActivity.this);
+                    eIcon.setText("⭐");
+                    eIcon.setTextSize(32);
+                    emptyCard.addView(eIcon);
+
+                    TextView eText = new TextView(MainActivity.this);
+                    eText.setText(en ? "No starred items yet.\nDuring conversation practice or in session diagnostic reports, tap ⭐ to collect practical sentences here!"
+                            : "尚無收藏項目。\n在口語對話教室或課後 AI 診斷報告中，點擊 ★ 即可收藏至專屬生詞本！");
+                    eText.setTextSize(12);
+                    eText.setTextColor(Color.parseColor("#94A3B8"));
+                    eText.setGravity(Gravity.CENTER);
+                    eText.setLineSpacing(dp(3), 1.2f);
+                    eText.setPadding(0, dp(8), 0, 0);
+                    emptyCard.addView(eText);
+
+                    container.addView(emptyCard);
+                } else {
+                    for (final LearningDataManager.StarredItem item : items) {
+                        LinearLayout itemCard = new LinearLayout(MainActivity.this);
+                        itemCard.setOrientation(LinearLayout.VERTICAL);
+                        itemCard.setPadding(dp(14), dp(12), dp(14), dp(12));
+                        GradientDrawable iBg = new GradientDrawable();
+                        iBg.setColor(Color.parseColor("#1E293B"));
+                        iBg.setCornerRadius(dp(12));
+                        iBg.setStroke(dp(1), Color.parseColor("#334155"));
+                        itemCard.setBackground(iBg);
+                        LinearLayout.LayoutParams ilp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                        ilp.setMargins(0, 0, 0, dp(10));
+                        itemCard.setLayoutParams(ilp);
+
+                        // Tag & Action row
+                        LinearLayout tagRow = new LinearLayout(MainActivity.this);
+                        tagRow.setOrientation(LinearLayout.HORIZONTAL);
+                        tagRow.setGravity(Gravity.CENTER_VERTICAL);
+
+                        TextView tagTv = new TextView(MainActivity.this);
+                        String catLabel = "correction".equals(item.category) ? (en ? "✨ Native Recast" : "✨ 道地糾錯")
+                                : ("hint".equals(item.category) ? (en ? "💡 Reply Hint" : "💡 回答小抄")
+                                : ("vocab".equals(item.category) ? (en ? "📖 Vocabulary" : "📖 重點單字") : (en ? "💬 Phrase" : "💬 實用金句")));
+                        tagTv.setText(catLabel);
+                        tagTv.setTextSize(10);
+                        tagTv.setTextColor("correction".equals(item.category) ? Color.parseColor("#F472B6") : Color.parseColor("#FBBF24"));
+                        tagTv.setTypeface(Typeface.DEFAULT_BOLD);
+                        tagRow.addView(tagTv, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+
+                        Button playBtn = new Button(MainActivity.this);
+                        playBtn.setText("🔊");
+                        playBtn.setTextSize(11);
+                        playBtn.setTextColor(Color.WHITE);
+                        GradientDrawable pbBg = new GradientDrawable();
+                        pbBg.setColor(Color.parseColor("#4F46E5"));
+                        pbBg.setCornerRadius(dp(6));
+                        playBtn.setBackground(pbBg);
+                        playBtn.setOnClickListener(new View.OnClickListener() {
+                            @Override public void onClick(View v) { speakTts(item.originalText); }
+                        });
+                        tagRow.addView(playBtn, new LinearLayout.LayoutParams(dp(42), dp(28)));
+
+                        Button delBtn = new Button(MainActivity.this);
+                        delBtn.setText("🗑️");
+                        delBtn.setTextSize(11);
+                        delBtn.setTextColor(Color.WHITE);
+                        GradientDrawable dbBg = new GradientDrawable();
+                        dbBg.setColor(Color.parseColor("#334155"));
+                        dbBg.setCornerRadius(dp(6));
+                        delBtn.setBackground(dbBg);
+                        LinearLayout.LayoutParams dlp = new LinearLayout.LayoutParams(dp(38), dp(28));
+                        dlp.setMargins(dp(6), 0, 0, 0);
+                        delBtn.setLayoutParams(dlp);
+                        delBtn.setOnClickListener(new View.OnClickListener() {
+                            @Override public void onClick(View v) {
+                                LearningDataManager.removeStarredItemById(MainActivity.this, item.id);
+                                run();
+                            }
+                        });
+                        tagRow.addView(delBtn);
+
+                        itemCard.addView(tagRow);
+
+                        // Original text
+                        TextView textTv = new TextView(MainActivity.this);
+                        textTv.setText(item.originalText);
+                        textTv.setTextSize(14);
+                        textTv.setTextColor(Color.WHITE);
+                        textTv.setTypeface(Typeface.DEFAULT_BOLD);
+                        textTv.setPadding(0, dp(4), 0, dp(2));
+                        itemCard.addView(textTv);
+
+                        // Translation
+                        if (!item.translation.isEmpty()) {
+                            TextView transTv = new TextView(MainActivity.this);
+                            transTv.setText(item.translation);
+                            transTv.setTextSize(12);
+                            transTv.setTextColor(Color.parseColor("#94A3B8"));
+                            transTv.setPadding(0, 0, 0, dp(2));
+                            itemCard.addView(transTv);
+                        }
+
+                        // Notes
+                        if (!item.notes.isEmpty()) {
+                            TextView notesTv = new TextView(MainActivity.this);
+                            notesTv.setText("💡 " + item.notes);
+                            notesTv.setTextSize(11);
+                            notesTv.setTextColor(Color.parseColor("#A5B4FC"));
+                            itemCard.addView(notesTv);
+                        }
+
+                        container.addView(itemCard);
+                    }
+                }
+            }
+        };
+
+        renderList.run();
+        scroll.addView(container);
+        dialog.setContentView(scroll);
+        dialog.show();
+    }
+
+    private void showSessionHistoryDialog() {
+        final boolean en = I18n.isEnglish(this);
+        final android.app.Dialog dialog = new android.app.Dialog(this, android.R.style.Theme_Black_NoTitleBar_Fullscreen);
+        if (dialog.getWindow() != null) {
+            dialog.getWindow().setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(Color.parseColor("#D0000000")));
+        }
+
+        ScrollView scroll = new ScrollView(this);
+        scroll.setFillViewport(true);
+        scroll.setPadding(dp(16), dp(24), dp(16), dp(24));
+
+        LinearLayout container = new LinearLayout(this);
+        container.setOrientation(LinearLayout.VERTICAL);
+        container.setPadding(dp(18), dp(18), dp(18), dp(18));
+        GradientDrawable cBg = new GradientDrawable();
+        cBg.setColor(Color.parseColor("#0F172A"));
+        cBg.setCornerRadius(dp(20));
+        cBg.setStroke(dp(1), Color.parseColor("#334155"));
+        container.setBackground(cBg);
+
+        // Header
+        LinearLayout headRow = new LinearLayout(this);
+        headRow.setOrientation(LinearLayout.HORIZONTAL);
+        headRow.setGravity(Gravity.CENTER_VERTICAL);
+
+        TextView title = new TextView(this);
+        title.setText(en ? "📊 Session History & Diagnostics" : "📊 歷史對話與成效報告");
+        title.setTextSize(16);
+        title.setTextColor(Color.WHITE);
+        title.setTypeface(Typeface.DEFAULT_BOLD);
+        headRow.addView(title, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+
+        TextView closeBtn = new TextView(this);
+        closeBtn.setText("✕");
+        closeBtn.setTextSize(18);
+        closeBtn.setTextColor(Color.parseColor("#94A3B8"));
+        closeBtn.setPadding(dp(10), dp(4), dp(4), dp(4));
+        closeBtn.setOnClickListener(new View.OnClickListener() {
+            @Override public void onClick(View v) { dialog.dismiss(); }
+        });
+        headRow.addView(closeBtn);
+        container.addView(headRow);
+
+        final List<LearningDataManager.SessionRecord> history = LearningDataManager.getSessionHistory(this);
+
+        TextView subtitle = new TextView(this);
+        subtitle.setText(en ? ("Total " + history.size() + " completed tutoring sessions · Tap any card to review full report")
+                : ("累計 " + history.size() + " 堂完成對話 · 點擊任一卡片可隨時重溫完整診斷報告"));
+        subtitle.setTextSize(11);
+        subtitle.setTextColor(Color.parseColor("#94A3B8"));
+        subtitle.setPadding(0, dp(4), 0, dp(12));
+        container.addView(subtitle);
+
+        if (history.isEmpty()) {
+            LinearLayout emptyCard = new LinearLayout(this);
+            emptyCard.setOrientation(LinearLayout.VERTICAL);
+            emptyCard.setPadding(dp(20), dp(24), dp(20), dp(24));
+            emptyCard.setGravity(Gravity.CENTER);
+            GradientDrawable eBg = new GradientDrawable();
+            eBg.setColor(Color.parseColor("#1E293B"));
+            eBg.setCornerRadius(dp(14));
+            emptyCard.setBackground(eBg);
+
+            TextView eIcon = new TextView(this);
+            eIcon.setText("📊");
+            eIcon.setTextSize(32);
+            emptyCard.addView(eIcon);
+
+            TextView eText = new TextView(this);
+            eText.setText(en ? "No tutoring sessions yet.\nStart a practice session from home to generate your first AI diagnostic report!"
+                    : "尚無課堂記錄。\n從首頁點擊開始口語對話，完成後將自動生成專屬學習成效診斷報告！");
+            eText.setTextSize(12);
+            eText.setTextColor(Color.parseColor("#94A3B8"));
+            eText.setGravity(Gravity.CENTER);
+            eText.setLineSpacing(dp(3), 1.2f);
+            eText.setPadding(0, dp(8), 0, 0);
+            emptyCard.addView(eText);
+
+            container.addView(emptyCard);
+        } else {
+            for (final LearningDataManager.SessionRecord record : history) {
+                LinearLayout itemCard = new LinearLayout(this);
+                itemCard.setOrientation(LinearLayout.VERTICAL);
+                itemCard.setPadding(dp(14), dp(12), dp(14), dp(12));
+                GradientDrawable iBg = new GradientDrawable();
+                iBg.setColor(Color.parseColor("#1E293B"));
+                iBg.setCornerRadius(dp(12));
+                iBg.setStroke(dp(1), Color.parseColor("#334155"));
+                itemCard.setBackground(iBg);
+                LinearLayout.LayoutParams ilp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                ilp.setMargins(0, 0, 0, dp(10));
+                itemCard.setLayoutParams(ilp);
+                itemCard.setClickable(true);
+                itemCard.setFocusable(true);
+
+                // Top row: Scenario + Score
+                LinearLayout topRow = new LinearLayout(this);
+                topRow.setOrientation(LinearLayout.HORIZONTAL);
+                topRow.setGravity(Gravity.CENTER_VERTICAL);
+
+                TextView scenTv = new TextView(this);
+                scenTv.setText(getPersonaLabel(record.scenario, en));
+                scenTv.setTextSize(13);
+                scenTv.setTextColor(Color.parseColor("#38BDF8"));
+                scenTv.setTypeface(Typeface.DEFAULT_BOLD);
+                topRow.addView(scenTv, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+
+                TextView scoreBadge = new TextView(this);
+                scoreBadge.setText("🎯 " + record.overallScore + " 分");
+                scoreBadge.setTextSize(12);
+                scoreBadge.setTextColor(record.overallScore >= 85 ? Color.parseColor("#34D399") : Color.parseColor("#FBBF24"));
+                scoreBadge.setTypeface(Typeface.DEFAULT_BOLD);
+                topRow.addView(scoreBadge);
+
+                itemCard.addView(topRow);
+
+                // Meta row: Date + duration + turns
+                int mins = record.durationSeconds / 60;
+                int secs = record.durationSeconds % 60;
+                String timeStr = mins > 0 ? (mins + "分" + secs + "秒") : (secs + "秒");
+                TextView metaTv = new TextView(this);
+                metaTv.setText(record.dateString + " · ⏱️ " + timeStr + " · 💬 " + record.userTurns + " 輪對話");
+                metaTv.setTextSize(11);
+                metaTv.setTextColor(Color.parseColor("#94A3B8"));
+                metaTv.setPadding(0, dp(2), 0, dp(4));
+                itemCard.addView(metaTv);
+
+                // Summary snippet
+                if (!record.summary.isEmpty()) {
+                    TextView sumTv = new TextView(this);
+                    sumTv.setText(record.summary);
+                    sumTv.setTextSize(12);
+                    sumTv.setTextColor(Color.parseColor("#E2E8F0"));
+                    sumTv.setMaxLines(2);
+                    sumTv.setEllipsize(TextUtils.TruncateAt.END);
+                    sumTv.setPadding(0, 0, 0, dp(4));
+                    itemCard.addView(sumTv);
+                }
+
+                // View Details link
+                TextView viewDetailTv = new TextView(this);
+                viewDetailTv.setText(en ? "Tap to view full diagnostic report ›" : "點擊查看完整診斷報告與生詞 ›");
+                viewDetailTv.setTextSize(11);
+                viewDetailTv.setTextColor(Color.parseColor("#818CF8"));
+                viewDetailTv.setGravity(Gravity.RIGHT);
+                itemCard.addView(viewDetailTv);
+
+                itemCard.setOnClickListener(new View.OnClickListener() {
+                    @Override public void onClick(View v) {
+                        showSessionReportDialog(record);
+                    }
+                });
+
+                container.addView(itemCard);
+            }
+        }
+
+        scroll.addView(container);
+        dialog.setContentView(scroll);
+        dialog.show();
+    }
+
+    public void showSessionReportDialog(final LearningDataManager.SessionRecord record) {
+        if (record == null || isFinishing()) return;
+        final boolean en = I18n.isEnglish(this);
+
+        final android.app.Dialog dialog = new android.app.Dialog(this, android.R.style.Theme_Black_NoTitleBar_Fullscreen);
+        if (dialog.getWindow() != null) {
+            dialog.getWindow().setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(Color.parseColor("#D0000000")));
+        }
+
+        ScrollView scroll = new ScrollView(this);
+        scroll.setFillViewport(true);
+        scroll.setPadding(dp(16), dp(24), dp(16), dp(24));
+
+        LinearLayout container = new LinearLayout(this);
+        container.setOrientation(LinearLayout.VERTICAL);
+        container.setPadding(dp(18), dp(18), dp(18), dp(18));
+        GradientDrawable cBg = new GradientDrawable();
+        cBg.setColor(Color.parseColor("#0F172A"));
+        cBg.setCornerRadius(dp(20));
+        cBg.setStroke(dp(1), Color.parseColor("#334155"));
+        container.setBackground(cBg);
+
+        // 1. Header Bar: Title & Close Button
+        LinearLayout headRow = new LinearLayout(this);
+        headRow.setOrientation(LinearLayout.HORIZONTAL);
+        headRow.setGravity(Gravity.CENTER_VERTICAL);
+
+        TextView title = new TextView(this);
+        title.setText(en ? "📊 AI Learning Diagnostic Report" : "📊 課後 AI 學習成效診斷報告");
+        title.setTextSize(16);
+        title.setTextColor(Color.WHITE);
+        title.setTypeface(Typeface.DEFAULT_BOLD);
+        headRow.addView(title, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+
+        TextView closeBtn = new TextView(this);
+        closeBtn.setText("✕");
+        closeBtn.setTextSize(18);
+        closeBtn.setTextColor(Color.parseColor("#94A3B8"));
+        closeBtn.setPadding(dp(10), dp(4), dp(4), dp(4));
+        closeBtn.setOnClickListener(new View.OnClickListener() {
+            @Override public void onClick(View v) { dialog.dismiss(); }
+        });
+        headRow.addView(closeBtn);
+        container.addView(headRow);
+
+        // 2. Score Hero Banner
+        LinearLayout heroScoreCard = new LinearLayout(this);
+        heroScoreCard.setOrientation(LinearLayout.VERTICAL);
+        heroScoreCard.setPadding(dp(16), dp(14), dp(16), dp(14));
+        GradientDrawable hBg = new GradientDrawable();
+        hBg.setColors(new int[]{Color.parseColor("#1E1B4B"), Color.parseColor("#312E81")});
+        hBg.setOrientation(GradientDrawable.Orientation.TL_BR);
+        hBg.setCornerRadius(dp(14));
+        hBg.setStroke(dp(1), Color.parseColor("#6366F1"));
+        heroScoreCard.setBackground(hBg);
+        LinearLayout.LayoutParams hl = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        hl.setMargins(0, dp(14), 0, dp(14));
+        heroScoreCard.setLayoutParams(hl);
+
+        LinearLayout scoreRow = new LinearLayout(this);
+        scoreRow.setOrientation(LinearLayout.HORIZONTAL);
+        scoreRow.setGravity(Gravity.CENTER_VERTICAL);
+
+        TextView scoreVal = new TextView(this);
+        scoreVal.setText(String.valueOf(record.overallScore));
+        scoreVal.setTextSize(36);
+        scoreVal.setTextColor(Color.parseColor("#38BDF8"));
+        scoreVal.setTypeface(Typeface.create("sans-serif-black", Typeface.BOLD));
+        scoreRow.addView(scoreVal);
+
+        LinearLayout metaCol = new LinearLayout(this);
+        metaCol.setOrientation(LinearLayout.VERTICAL);
+        metaCol.setPadding(dp(12), 0, 0, 0);
+
+        TextView ratingTv = new TextView(this);
+        String ratingStr = record.overallScore >= 90 ? (en ? "🌟 Outstanding Mastery" : "🌟 表現優異 · 掌握自如")
+                : (record.overallScore >= 80 ? (en ? "👍 Great Fluency" : "👍 表達流暢 · 互動良好")
+                : (en ? "💪 Keep Practicing" : "💪 持續進步 · 勇於開口"));
+        ratingTv.setText(ratingStr);
+        ratingTv.setTextSize(14);
+        ratingTv.setTextColor(Color.WHITE);
+        ratingTv.setTypeface(Typeface.DEFAULT_BOLD);
+        metaCol.addView(ratingTv);
+
+        TextView infoTv = new TextView(this);
+        int mins = record.durationSeconds / 60;
+        int secs = record.durationSeconds % 60;
+        String timeStr = mins > 0 ? (mins + "分" + secs + "秒") : (secs + "秒");
+        infoTv.setText(record.dateString + " · " + timeStr + " · " + record.userTurns + " 輪互動");
+        infoTv.setTextSize(11);
+        infoTv.setTextColor(Color.parseColor("#C7D2FE"));
+        infoTv.setPadding(0, dp(2), 0, 0);
+        metaCol.addView(infoTv);
+
+        scoreRow.addView(metaCol, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        heroScoreCard.addView(scoreRow);
+
+        // 4 Diagnostic Progress Bars
+        LinearLayout barsCol = new LinearLayout(this);
+        barsCol.setOrientation(LinearLayout.VERTICAL);
+        barsCol.setPadding(0, dp(12), 0, 0);
+        barsCol.addView(makeScoreBar(en ? "Fluency 流暢度" : "流暢度 (Fluency)", record.fluencyScore, "#38BDF8"));
+        barsCol.addView(makeScoreBar(en ? "Vocabulary 詞彙量" : "詞彙量 (Vocabulary)", record.vocabScore, "#FBBF24"));
+        barsCol.addView(makeScoreBar(en ? "Grammar 文法準確" : "文法準確 (Grammar)", record.grammarScore, "#A78BFA"));
+        barsCol.addView(makeScoreBar(en ? "Phonetic 發音自然" : "發音自然 (Phonetic)", record.phoneticScore, "#34D399"));
+        heroScoreCard.addView(barsCol);
+        container.addView(heroScoreCard);
+
+        // 3. Summary & Strengths
+        if (!record.summary.isEmpty() || !record.strengths.isEmpty()) {
+            LinearLayout sumCard = new LinearLayout(this);
+            sumCard.setOrientation(LinearLayout.VERTICAL);
+            sumCard.setPadding(dp(14), dp(12), dp(14), dp(12));
+            GradientDrawable sBg = new GradientDrawable();
+            sBg.setColor(Color.parseColor("#1E293B"));
+            sBg.setCornerRadius(dp(12));
+            sBg.setStroke(dp(1), Color.parseColor("#334155"));
+            sumCard.setBackground(sBg);
+            LinearLayout.LayoutParams slp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            slp.setMargins(0, 0, 0, dp(12));
+            sumCard.setLayoutParams(slp);
+
+            if (!record.summary.isEmpty()) {
+                TextView stTitle = new TextView(this);
+                stTitle.setText(en ? "📋 Overall Summary" : "📋 課堂綜合評述");
+                stTitle.setTextSize(12);
+                stTitle.setTextColor(Color.parseColor("#60A5FA"));
+                stTitle.setTypeface(Typeface.DEFAULT_BOLD);
+                sumCard.addView(stTitle);
+
+                TextView stBody = new TextView(this);
+                stBody.setText(record.summary);
+                stBody.setTextSize(13);
+                stBody.setTextColor(Color.parseColor("#E2E8F0"));
+                stBody.setLineSpacing(dp(2), 1.2f);
+                stBody.setPadding(0, dp(2), 0, dp(8));
+                sumCard.addView(stBody);
+            }
+
+            if (!record.strengths.isEmpty()) {
+                TextView strTitle = new TextView(this);
+                strTitle.setText(en ? "💪 Strengths & Highlights" : "💪 優勢亮點與進步");
+                strTitle.setTextSize(12);
+                strTitle.setTextColor(Color.parseColor("#34D399"));
+                strTitle.setTypeface(Typeface.DEFAULT_BOLD);
+                sumCard.addView(strTitle);
+
+                TextView strBody = new TextView(this);
+                strBody.setText(record.strengths);
+                strBody.setTextSize(13);
+                strBody.setTextColor(Color.parseColor("#E2E8F0"));
+                strBody.setLineSpacing(dp(2), 1.2f);
+                strBody.setPadding(0, dp(2), 0, 0);
+                sumCard.addView(strBody);
+            }
+
+            container.addView(sumCard);
+        }
+
+        // 4. Recasts Corrections (道地重述對照)
+        try {
+            JSONArray recasts = new JSONArray(record.recastsJson);
+            if (recasts.length() > 0) {
+                TextView rcTitle = new TextView(this);
+                rcTitle.setText(en ? "✨ Native Recast & Fixes (Tap ⭐ to save)" : "✨ 母語者道地重述對照（點擊 ⭐ 收藏）");
+                rcTitle.setTextSize(13);
+                rcTitle.setTextColor(Color.parseColor("#F472B6"));
+                rcTitle.setTypeface(Typeface.DEFAULT_BOLD);
+                rcTitle.setPadding(0, dp(4), 0, dp(8));
+                container.addView(rcTitle);
+
+                for (int i = 0; i < recasts.length(); i++) {
+                    JSONObject rc = recasts.getJSONObject(i);
+                    final String orig = rc.optString("original", "");
+                    final String corr = rc.optString("corrected", "");
+                    final String expl = rc.optString("explanation", "");
+
+                    LinearLayout rcCard = new LinearLayout(this);
+                    rcCard.setOrientation(LinearLayout.VERTICAL);
+                    rcCard.setPadding(dp(12), dp(10), dp(12), dp(10));
+                    GradientDrawable rBg = new GradientDrawable();
+                    rBg.setColor(Color.parseColor("#1E293B"));
+                    rBg.setCornerRadius(dp(10));
+                    rBg.setStroke(dp(1), Color.parseColor("#374151"));
+                    rcCard.setBackground(rBg);
+                    LinearLayout.LayoutParams rclp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                    rclp.setMargins(0, 0, 0, dp(8));
+                    rcCard.setLayoutParams(rclp);
+
+                    // Student original (red tint)
+                    TextView oTv = new TextView(this);
+                    oTv.setText("🗣️ " + (en ? "You said: " : "原句：") + orig);
+                    oTv.setTextSize(12);
+                    oTv.setTextColor(Color.parseColor("#FCA5A5"));
+                    rcCard.addView(oTv);
+
+                    // Native recast row (green)
+                    LinearLayout corRow = new LinearLayout(this);
+                    corRow.setOrientation(LinearLayout.HORIZONTAL);
+                    corRow.setGravity(Gravity.CENTER_VERTICAL);
+                    corRow.setPadding(0, dp(4), 0, 0);
+
+                    TextView cTv = new TextView(this);
+                    cTv.setText("✨ " + (en ? "Native: " : "道地說法：") + corr);
+                    cTv.setTextSize(13);
+                    cTv.setTextColor(Color.parseColor("#6EE7B7"));
+                    cTv.setTypeface(Typeface.DEFAULT_BOLD);
+                    corRow.addView(cTv, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+
+                    // Listen button
+                    Button playBtn = new Button(this);
+                    playBtn.setText("🔊");
+                    playBtn.setTextSize(11);
+                    playBtn.setTextColor(Color.WHITE);
+                    GradientDrawable pBg = new GradientDrawable();
+                    pBg.setColor(Color.parseColor("#4F46E5"));
+                    pBg.setCornerRadius(dp(6));
+                    playBtn.setBackground(pBg);
+                    playBtn.setOnClickListener(new View.OnClickListener() {
+                        @Override public void onClick(View v) { speakTts(corr); }
+                    });
+                    corRow.addView(playBtn, new LinearLayout.LayoutParams(dp(42), dp(28)));
+
+                    // Star button
+                    final boolean isSt = LearningDataManager.isStarred(MainActivity.this, corr);
+                    final Button starBtn = new Button(this);
+                    starBtn.setText(isSt ? "★" : "☆");
+                    starBtn.setTextSize(13);
+                    starBtn.setTextColor(isSt ? Color.parseColor("#FBBF24") : Color.parseColor("#94A3B8"));
+                    starBtn.setBackground(null);
+                    starBtn.setPadding(0, 0, 0, 0);
+                    starBtn.setOnClickListener(new View.OnClickListener() {
+                        @Override public void onClick(View v) {
+                            boolean nowStarred = LearningDataManager.toggleStarItem(MainActivity.this, corr, orig, "correction", expl);
+                            starBtn.setText(nowStarred ? "★" : "☆");
+                            starBtn.setTextColor(nowStarred ? Color.parseColor("#FBBF24") : Color.parseColor("#94A3B8"));
+                            Toast.makeText(MainActivity.this, nowStarred ? (en ? "Saved to Phrasebook" : "已收藏至生詞金句本") : (en ? "Removed" : "已取消收藏"), Toast.LENGTH_SHORT).show();
+                        }
+                    });
+                    corRow.addView(starBtn, new LinearLayout.LayoutParams(dp(36), dp(28)));
+                    rcCard.addView(corRow);
+
+                    if (!expl.isEmpty()) {
+                        TextView eTv = new TextView(this);
+                        eTv.setText("💡 " + expl);
+                        eTv.setTextSize(11);
+                        eTv.setTextColor(Color.parseColor("#94A3B8"));
+                        eTv.setPadding(dp(4), dp(4), 0, 0);
+                        rcCard.addView(eTv);
+                    }
+
+                    container.addView(rcCard);
+                }
+            }
+        } catch (Exception ignored) {}
+
+        // 5. Key Takeaways
+        try {
+            JSONArray takeaways = new JSONArray(record.takeawaysJson);
+            if (takeaways.length() > 0) {
+                TextView tkTitle = new TextView(this);
+                tkTitle.setText(en ? "💡 Key Takeaways & Useful Expressions" : "💡 課後精選實用金句");
+                tkTitle.setTextSize(13);
+                tkTitle.setTextColor(Color.parseColor("#FBBF24"));
+                tkTitle.setTypeface(Typeface.DEFAULT_BOLD);
+                tkTitle.setPadding(0, dp(6), 0, dp(8));
+                container.addView(tkTitle);
+
+                for (int i = 0; i < takeaways.length(); i++) {
+                    JSONObject tk = takeaways.getJSONObject(i);
+                    final String phrase = tk.optString("phrase", "");
+                    final String trans = tk.optString("translation", "");
+
+                    LinearLayout tkCard = new LinearLayout(this);
+                    tkCard.setOrientation(LinearLayout.HORIZONTAL);
+                    tkCard.setGravity(Gravity.CENTER_VERTICAL);
+                    tkCard.setPadding(dp(12), dp(8), dp(12), dp(8));
+                    GradientDrawable tBg = new GradientDrawable();
+                    tBg.setColor(Color.parseColor("#1E293B"));
+                    tBg.setCornerRadius(dp(8));
+                    tBg.setStroke(dp(1), Color.parseColor("#334155"));
+                    tkCard.setBackground(tBg);
+                    LinearLayout.LayoutParams tklp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                    tklp.setMargins(0, 0, 0, dp(6));
+                    tkCard.setLayoutParams(tklp);
+
+                    LinearLayout textCol = new LinearLayout(this);
+                    textCol.setOrientation(LinearLayout.VERTICAL);
+
+                    TextView pTv = new TextView(this);
+                    pTv.setText("• " + phrase);
+                    pTv.setTextSize(13);
+                    pTv.setTextColor(Color.WHITE);
+                    pTv.setTypeface(Typeface.DEFAULT_BOLD);
+                    textCol.addView(pTv);
+
+                    if (!trans.isEmpty()) {
+                        TextView trTv = new TextView(this);
+                        trTv.setText(trans);
+                        trTv.setTextSize(11);
+                        trTv.setTextColor(Color.parseColor("#94A3B8"));
+                        trTv.setPadding(0, dp(2), 0, 0);
+                        textCol.addView(trTv);
+                    }
+                    tkCard.addView(textCol, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+
+                    Button pBtn = new Button(this);
+                    pBtn.setText("🔊");
+                    pBtn.setTextSize(11);
+                    pBtn.setTextColor(Color.WHITE);
+                    GradientDrawable pbBg = new GradientDrawable();
+                    pbBg.setColor(Color.parseColor("#4F46E5"));
+                    pbBg.setCornerRadius(dp(6));
+                    pBtn.setBackground(pbBg);
+                    pBtn.setOnClickListener(new View.OnClickListener() {
+                        @Override public void onClick(View v) { speakTts(phrase); }
+                    });
+                    tkCard.addView(pBtn, new LinearLayout.LayoutParams(dp(42), dp(28)));
+
+                    final boolean isStarred = LearningDataManager.isStarred(MainActivity.this, phrase);
+                    final Button starBtn = new Button(this);
+                    starBtn.setText(isStarred ? "★" : "☆");
+                    starBtn.setTextSize(13);
+                    starBtn.setTextColor(isStarred ? Color.parseColor("#FBBF24") : Color.parseColor("#94A3B8"));
+                    starBtn.setBackground(null);
+                    starBtn.setPadding(0, 0, 0, 0);
+                    starBtn.setOnClickListener(new View.OnClickListener() {
+                        @Override public void onClick(View v) {
+                            boolean nowStarred = LearningDataManager.toggleStarItem(MainActivity.this, phrase, trans, "phrase", "");
+                            starBtn.setText(nowStarred ? "★" : "☆");
+                            starBtn.setTextColor(nowStarred ? Color.parseColor("#FBBF24") : Color.parseColor("#94A3B8"));
+                            Toast.makeText(MainActivity.this, nowStarred ? (en ? "Saved to Phrasebook" : "已收藏至生詞金句本") : (en ? "Removed" : "已取消收藏"), Toast.LENGTH_SHORT).show();
+                        }
+                    });
+                    tkCard.addView(starBtn, new LinearLayout.LayoutParams(dp(36), dp(28)));
+
+                    container.addView(tkCard);
+                }
+            }
+        } catch (Exception ignored) {}
+
+        // 6. Tutor Cheer
+        if (!record.cheer.isEmpty()) {
+            LinearLayout cheerCard = new LinearLayout(this);
+            cheerCard.setOrientation(LinearLayout.VERTICAL);
+            cheerCard.setPadding(dp(14), dp(12), dp(14), dp(12));
+            GradientDrawable chBg = new GradientDrawable();
+            chBg.setColor(Color.parseColor("#14532D")); // Emerald 900
+            chBg.setCornerRadius(dp(12));
+            chBg.setStroke(dp(1), Color.parseColor("#16A34A"));
+            cheerCard.setBackground(chBg);
+            LinearLayout.LayoutParams chlp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            chlp.setMargins(0, dp(8), 0, dp(14));
+            cheerCard.setLayoutParams(chlp);
+
+            TextView chTitle = new TextView(this);
+            chTitle.setText(en ? "💌 Tutor Cheer" : "💌 外師課後寄語");
+            chTitle.setTextSize(12);
+            chTitle.setTextColor(Color.parseColor("#86EFAC"));
+            chTitle.setTypeface(Typeface.DEFAULT_BOLD);
+            cheerCard.addView(chTitle);
+
+            TextView chBody = new TextView(this);
+            chBody.setText(record.cheer);
+            chBody.setTextSize(13);
+            chBody.setTextColor(Color.WHITE);
+            chBody.setLineSpacing(dp(2), 1.2f);
+            chBody.setPadding(0, dp(3), 0, 0);
+            cheerCard.addView(chBody);
+
+            container.addView(cheerCard);
+        }
+
+        // 7. Star All & Close Buttons
+        LinearLayout btnRow = new LinearLayout(this);
+        btnRow.setOrientation(LinearLayout.HORIZONTAL);
+
+        Button starAllBtn = new Button(this);
+        starAllBtn.setText(en ? "⭐ Star All Sentences" : "⭐ 一鍵收藏所有精選句子");
+        starAllBtn.setTextSize(12);
+        starAllBtn.setTextColor(Color.WHITE);
+        starAllBtn.setTypeface(Typeface.DEFAULT_BOLD);
+        GradientDrawable sab = new GradientDrawable();
+        sab.setColor(Color.parseColor("#D97706")); // Amber 600
+        sab.setCornerRadius(dp(10));
+        starAllBtn.setBackground(sab);
+        starAllBtn.setOnClickListener(new View.OnClickListener() {
+            @Override public void onClick(View v) {
+                int count = 0;
+                try {
+                    JSONArray recasts = new JSONArray(record.recastsJson);
+                    for (int i = 0; i < recasts.length(); i++) {
+                        JSONObject rc = recasts.getJSONObject(i);
+                        String corr = rc.optString("corrected", "");
+                        String orig = rc.optString("original", "");
+                        if (!corr.isEmpty() && !LearningDataManager.isStarred(MainActivity.this, corr)) {
+                            LearningDataManager.toggleStarItem(MainActivity.this, corr, orig, "correction", "");
+                            count++;
+                        }
+                    }
+                    JSONArray takeaways = new JSONArray(record.takeawaysJson);
+                    for (int i = 0; i < takeaways.length(); i++) {
+                        JSONObject tk = takeaways.getJSONObject(i);
+                        String phrase = tk.optString("phrase", "");
+                        String trans = tk.optString("translation", "");
+                        if (!phrase.isEmpty() && !LearningDataManager.isStarred(MainActivity.this, phrase)) {
+                            LearningDataManager.toggleStarItem(MainActivity.this, phrase, trans, "phrase", "");
+                            count++;
+                        }
+                    }
+                } catch (Exception ignored) {}
+                Toast.makeText(MainActivity.this, en ? ("⭐ " + count + " items added to Phrasebook!") : ("⭐ 已收藏 " + count + " 條精選金句至生詞本！"), Toast.LENGTH_SHORT).show();
+            }
+        });
+        btnRow.addView(starAllBtn, new LinearLayout.LayoutParams(0, dp(44), 1.2f));
+
+        Button okBtn = new Button(this);
+        okBtn.setText(en ? "Done" : "完成");
+        okBtn.setTextSize(13);
+        okBtn.setTextColor(Color.WHITE);
+        GradientDrawable ob = new GradientDrawable();
+        ob.setColor(Color.parseColor("#2563EB"));
+        ob.setCornerRadius(dp(10));
+        okBtn.setBackground(ob);
+        LinearLayout.LayoutParams oklp = new LinearLayout.LayoutParams(0, dp(44), 0.8f);
+        oklp.setMargins(dp(8), 0, 0, 0);
+        okBtn.setLayoutParams(oklp);
+        okBtn.setOnClickListener(new View.OnClickListener() {
+            @Override public void onClick(View v) { dialog.dismiss(); }
+        });
+        btnRow.addView(okBtn);
+
+        container.addView(btnRow);
+        scroll.addView(container);
+        dialog.setContentView(scroll);
+        dialog.show();
+    }
+
+    private View makeScoreBar(String label, int score, String colorHex) {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.VERTICAL);
+        row.setPadding(0, dp(2), 0, dp(6));
+
+        LinearLayout head = new LinearLayout(this);
+        head.setOrientation(LinearLayout.HORIZONTAL);
+
+        TextView labelTv = new TextView(this);
+        labelTv.setText(label);
+        labelTv.setTextSize(11);
+        labelTv.setTextColor(Color.parseColor("#C7D2FE"));
+        head.addView(labelTv, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+
+        TextView scoreTv = new TextView(this);
+        scoreTv.setText(score + " 分");
+        scoreTv.setTextSize(11);
+        scoreTv.setTextColor(Color.parseColor(colorHex));
+        scoreTv.setTypeface(Typeface.DEFAULT_BOLD);
+        head.addView(scoreTv);
+        row.addView(head);
+
+        // Progress Bar track
+        FrameLayout track = new FrameLayout(this);
+        GradientDrawable tBg = new GradientDrawable();
+        tBg.setColor(Color.parseColor("#1E1B4B"));
+        tBg.setCornerRadius(dp(4));
+        track.setBackground(tBg);
+        LinearLayout.LayoutParams trLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(6));
+        trLp.setMargins(0, dp(3), 0, 0);
+        track.setLayoutParams(trLp);
+
+        // Fill
+        final View fill = new View(this);
+        GradientDrawable fBg = new GradientDrawable();
+        fBg.setColor(Color.parseColor(colorHex));
+        fBg.setCornerRadius(dp(4));
+        fill.setBackground(fBg);
+        final int fillScore = Math.max(5, Math.min(100, score));
+        track.addView(fill);
+        track.post(new Runnable() {
+            @Override public void run() {
+                int parentWidth = ((View) fill.getParent()).getWidth();
+                if (parentWidth > 0) {
+                    FrameLayout.LayoutParams p = (FrameLayout.LayoutParams) fill.getLayoutParams();
+                    p.width = (int) (parentWidth * (fillScore / 100.0));
+                    p.height = ViewGroup.LayoutParams.MATCH_PARENT;
+                    fill.setLayoutParams(p);
+                }
+            }
+        });
+
+        row.addView(track);
+        return row;
     }
 
     @Override
