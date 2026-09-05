@@ -125,69 +125,115 @@ public class OralCoachHelper {
         subTv.setPadding(0, dp(activity, 4), 0, dp(activity, 12));
         container.addView(subTv);
 
-        List<CourseModel.WarmupPhrase> suggestions = new ArrayList<>();
-        if (lesson != null && !lesson.warmupPhrases.isEmpty()) {
-            suggestions.addAll(lesson.warmupPhrases);
-        } else {
-            suggestions.add(new CourseModel.WarmupPhrase("Could you tell me more about that?", "可以多跟我分享一些細節嗎？", "/kʊd juː tɛl miː mɔːr əˈbaʊt ðæt/", "引導對方繼續說"));
-            suggestions.add(new CourseModel.WarmupPhrase("In my opinion, I prefer to...", "依我看，我比較偏好...", "/ɪn maɪ əˈpɪnjən, aɪ prɪˈfɜːr tuː/", "表達個人看法"));
-            suggestions.add(new CourseModel.WarmupPhrase("That is really interesting! How does that work?", "太有意思了！那具體是怎麼運作的？", "/ðæts ˈrɪəli ˈɪntrəstɪŋ/", "表達驚喜讚賞"));
-            suggestions.add(new CourseModel.WarmupPhrase("To be honest, I haven not thought about that before.", "老實說，我之前還真沒想過這個問題。", "/tuː biː ˈɒnɪst, aɪ hævnt θɔːt...", "爭取思考時間神句"));
-        }
+        final LinearLayout listContainer = new LinearLayout(activity);
+        listContainer.setOrientation(LinearLayout.VERTICAL);
 
-        for (final CourseModel.WarmupPhrase p : suggestions) {
-            LinearLayout pCard = new LinearLayout(activity);
-            pCard.setOrientation(LinearLayout.VERTICAL);
-            pCard.setPadding(dp(activity, 12), dp(activity, 10), dp(activity, 12), dp(activity, 10));
-            GradientDrawable pbg = new GradientDrawable();
-            pbg.setColor(Color.parseColor("#1E293B"));
-            pbg.setCornerRadius(dp(activity, 12));
-            pbg.setStroke(dp(activity, 1), Color.parseColor("#334155"));
-            pCard.setBackground(pbg);
+        final Runnable renderList = new Runnable() {
+            @Override public void run() {
+                listContainer.removeAllViews();
+                String currentTutorLang = AppConfig.getTutorLanguage(activity);
+                List<IcebreakerManager.Icebreaker> items = new ArrayList<IcebreakerManager.Icebreaker>();
 
-            LinearLayout.LayoutParams plp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-            plp.setMargins(0, 0, 0, dp(activity, 8));
-            pCard.setLayoutParams(plp);
+                if (lesson != null && lesson.warmupPhrases != null && !lesson.warmupPhrases.isEmpty()) {
+                    for (CourseModel.WarmupPhrase wp : lesson.warmupPhrases) {
+                        items.add(new IcebreakerManager.Icebreaker("⚡", wp.en, (en ? wp.en : wp.zh)));
+                    }
+                } else {
+                    items.addAll(IcebreakerManager.getIcebreakersForScenario(scenario, currentTutorLang));
+                }
 
-            LinearLayout phraseTop = new LinearLayout(activity);
-            phraseTop.setOrientation(LinearLayout.HORIZONTAL);
-            phraseTop.setGravity(Gravity.CENTER_VERTICAL);
+                for (final IcebreakerManager.Icebreaker p : items) {
+                    LinearLayout pCard = new LinearLayout(activity);
+                    pCard.setOrientation(LinearLayout.VERTICAL);
+                    pCard.setPadding(dp(activity, 12), dp(activity, 10), dp(activity, 12), dp(activity, 10));
+                    GradientDrawable pbg = new GradientDrawable();
+                    pbg.setColor(Color.parseColor("#1E293B"));
+                    pbg.setCornerRadius(dp(activity, 12));
+                    pbg.setStroke(dp(activity, 1), Color.parseColor("#334155"));
+                    pCard.setBackground(pbg);
 
-            TextView enTv = new TextView(activity);
-            enTv.setText(p.en);
-            enTv.setTextSize(13);
-            enTv.setTextColor(Color.WHITE);
-            enTv.setTypeface(Typeface.DEFAULT_BOLD);
-            phraseTop.addView(enTv, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+                    LinearLayout.LayoutParams plp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                    plp.setMargins(0, 0, 0, dp(activity, 8));
+                    pCard.setLayoutParams(plp);
 
-            TextView playBtn = new TextView(activity);
-            playBtn.setText("🔊 聽發音");
-            playBtn.setTextSize(11);
-            playBtn.setTextColor(Color.parseColor("#38BDF8"));
-            playBtn.setPadding(dp(activity, 6), dp(activity, 2), dp(activity, 6), dp(activity, 2));
-            playBtn.setOnClickListener(new View.OnClickListener() {
-                @Override public void onClick(View v) { speak(activity, p.en, 1.0f); }
-            });
-            phraseTop.addView(playBtn);
-            pCard.addView(phraseTop);
+                    LinearLayout phraseTop = new LinearLayout(activity);
+                    phraseTop.setOrientation(LinearLayout.HORIZONTAL);
+                    phraseTop.setGravity(Gravity.CENTER_VERTICAL);
 
-            TextView zhTv = new TextView(activity);
-            zhTv.setText(p.zh);
-            zhTv.setTextSize(11);
-            zhTv.setTextColor(Color.parseColor("#94A3B8"));
-            zhTv.setPadding(0, dp(activity, 2), 0, 0);
-            pCard.addView(zhTv);
+                    TextView enTv = new TextView(activity);
+                    enTv.setText(p.emoji + " " + p.targetPhrase);
+                    enTv.setTextSize(13);
+                    enTv.setTextColor(Color.WHITE);
+                    enTv.setTypeface(Typeface.DEFAULT_BOLD);
+                    phraseTop.addView(enTv, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
 
-            if (p.ipa != null && !p.ipa.isEmpty()) {
-                TextView ipaTv = new TextView(activity);
-                ipaTv.setText(p.ipa);
-                ipaTv.setTextSize(10);
-                ipaTv.setTextColor(Color.parseColor("#A78BFA"));
-                pCard.addView(ipaTv);
+                    TextView playBtn = new TextView(activity);
+                    playBtn.setText("🔊 聽發音");
+                    playBtn.setTextSize(11);
+                    playBtn.setTextColor(Color.parseColor("#38BDF8"));
+                    playBtn.setPadding(dp(activity, 8), dp(activity, 4), dp(activity, 8), dp(activity, 4));
+                    playBtn.setOnClickListener(new View.OnClickListener() {
+                        @Override public void onClick(View v) { speak(activity, p.targetPhrase, 1.0f); }
+                    });
+                    phraseTop.addView(playBtn);
+                    pCard.addView(phraseTop);
+
+                    TextView zhTv = new TextView(activity);
+                    zhTv.setText(p.nativeHint);
+                    zhTv.setTextSize(11);
+                    zhTv.setTextColor(Color.parseColor("#94A3B8"));
+                    zhTv.setPadding(0, dp(activity, 4), 0, 0);
+                    pCard.addView(zhTv);
+
+                    listContainer.addView(pCard);
+                }
             }
+        };
 
-            container.addView(pCard);
-        }
+        // Top Action: AI Generate New Starters Button
+        final Button aiGenBtn = new Button(activity);
+        aiGenBtn.setText(en ? "✨ AI Generate New Sentence Starters" : "✨ 叫 AI 生成全新提詞範例句");
+        aiGenBtn.setTextSize(12);
+        aiGenBtn.setTextColor(Color.WHITE);
+        aiGenBtn.setTypeface(Typeface.DEFAULT_BOLD);
+        GradientDrawable agBg = new GradientDrawable();
+        agBg.setColors(new int[]{Color.parseColor("#4F46E5"), Color.parseColor("#7C3AED")});
+        agBg.setOrientation(GradientDrawable.Orientation.LEFT_RIGHT);
+        agBg.setCornerRadius(dp(activity, 12));
+        aiGenBtn.setBackground(agBg);
+        LinearLayout.LayoutParams agLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(activity, 42));
+        agLp.setMargins(0, 0, 0, dp(activity, 12));
+        aiGenBtn.setLayoutParams(agLp);
+        aiGenBtn.setOnClickListener(new View.OnClickListener() {
+            @Override public void onClick(View v) {
+                if (AppConfig.getGeminiApiKey(activity).isEmpty()) {
+                    Toast.makeText(activity, en ? "Please configure Gemini API Key first" : "請先設定 Gemini API Key", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                aiGenBtn.setText(en ? "⏳ AI is generating..." : "⏳ AI 正在生成全新範例句…");
+                aiGenBtn.setEnabled(false);
+                String tLang = AppConfig.getTutorLanguage(activity);
+                String sLang = AppConfig.getStudentLanguage(activity);
+                IcebreakerManager.generateAsync(activity, scenario, tLang, sLang, "", new IcebreakerManager.GenerateCallback() {
+                    @Override public void onSuccess(List<IcebreakerManager.Icebreaker> generatedList) {
+                        aiGenBtn.setEnabled(true);
+                        aiGenBtn.setText(en ? "✨ AI Generate New Sentence Starters" : "✨ 叫 AI 生成全新提詞範例句");
+                        renderList.run();
+                        Toast.makeText(activity, en ? "✨ Generated " + generatedList.size() + " new starter phrases!" : "✨ 已為您生成 " + generatedList.size() + " 句全新開口金句！", Toast.LENGTH_SHORT).show();
+                    }
+
+                    @Override public void onError(String errorMessage) {
+                        aiGenBtn.setEnabled(true);
+                        aiGenBtn.setText(en ? "✨ AI Generate New Sentence Starters" : "✨ 叫 AI 生成全新提詞範例句");
+                        Toast.makeText(activity, "⚠️ " + errorMessage, Toast.LENGTH_LONG).show();
+                    }
+                });
+            }
+        });
+        container.addView(aiGenBtn);
+
+        renderList.run();
+        container.addView(listContainer);
 
         scroll.addView(container);
         dialog.setContentView(scroll);
