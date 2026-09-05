@@ -66,6 +66,7 @@ public class NativeGeminiLiveClient {
     private volatile boolean interruptedCurrentTurn;
     private volatile boolean allowVoiceInterruption = true; // 🎙️ 語音插話開關
     private volatile boolean agentMuted = false;
+    private volatile boolean micMuted = false;
 
     private AudioRecord recorder;
     private AcousticEchoCanceler aecEffect;
@@ -178,6 +179,12 @@ public class NativeGeminiLiveClient {
     public String getStage() { return stage; }
     public boolean isAiSpeaking() { return aiSpeaking; }
     public boolean isAgentMuted() { return agentMuted; }
+    public boolean isMicMuted() { return micMuted; }
+
+    public void setMicMuted(boolean muted) {
+        this.micMuted = muted;
+        Log.d(TAG, muted ? "Microphone stream MUTED for local audio playback" : "Microphone stream UNMUTED");
+    }
 
     public boolean toggleAgentMute() {
         if (aiSpeaking) {
@@ -507,14 +514,21 @@ public class NativeGeminiLiveClient {
     }
 
     private static final String[] TRANSLATION_MODELS = {
+            "gemini-2.5-flash",
             "gemini-2.0-flash",
-            "gemini-2.0-flash-lite",
+            "gemini-2.0-flash-exp",
             "gemini-1.5-flash",
-            "gemini-1.5-pro"
+            "gemini-1.5-flash-latest",
+            "gemini-1.5-flash-8b",
+            "gemini-1.5-pro",
+            "gemini-pro"
     };
 
     private void translateAsync(final String sourceText) {
-        if (apiKey == null || apiKey.isEmpty() || sourceText.isEmpty()) return;
+        if (apiKey == null || apiKey.trim().isEmpty() || sourceText == null || sourceText.trim().isEmpty()) {
+            Log.w(TAG, "translateAsync skipped: empty key or text");
+            return;
+        }
         String targetLang = AppConfig.getStudentLanguageDisplayName(context);
         String practiceLang = getLanguageDisplayName(tutorLang);
         final String prompt = "You are an expert oral language tutor assistant.\n"
@@ -530,12 +544,13 @@ public class NativeGeminiLiveClient {
                 + "  ]\n"
                 + "}\n"
                 + "Output ONLY the JSON object without markdown fences or code blocks.";
-        tryTranslateAt(0, sourceText, prompt);
+        Log.d(TAG, "Triggering translation for: " + sourceText);
+        tryTranslateAt(0, sourceText.trim(), prompt);
     }
 
     private void tryTranslateAt(final int modelIdx, final String sourceText, final String prompt) {
         if (modelIdx >= TRANSLATION_MODELS.length) {
-            Log.e(TAG, "All translation models failed for prompt");
+            Log.e(TAG, "All translation models failed for prompt: " + sourceText);
             return;
         }
         final String model = TRANSLATION_MODELS[modelIdx];
@@ -548,7 +563,7 @@ public class NativeGeminiLiveClient {
             JSONObject genConfig = new JSONObject();
             genConfig.put("temperature", 0.2);
             genConfig.put("maxOutputTokens", 1024);
-            genConfig.put("responseMimeType", "application/json");
+            try { genConfig.put("responseMimeType", "application/json"); } catch (Exception ignored) {}
             root.put("generationConfig", genConfig);
 
             String url = "https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent?key=" + apiKey;
@@ -556,7 +571,7 @@ public class NativeGeminiLiveClient {
             Request req = new Request.Builder().url(url).post(body).build();
             httpClient.newCall(req).enqueue(new okhttp3.Callback() {
                 @Override public void onFailure(okhttp3.Call call, java.io.IOException e) {
-                    Log.w(TAG, "Translation model " + model + " failed: " + e.getMessage());
+                    Log.w(TAG, "Translation model " + model + " network failure: " + e.getMessage());
                     tryTranslateAt(modelIdx + 1, sourceText, prompt);
                 }
                 @Override public void onResponse(okhttp3.Call call, Response response) throws java.io.IOException {
@@ -610,7 +625,9 @@ public class NativeGeminiLiveClient {
                                 }
                             }
                         } else {
-                            Log.w(TAG, "Translation model " + model + " returned code " + response.code() + ", msg=" + response.message());
+                            String errBody = "";
+                            try { if (response.body() != null) errBody = response.body().string(); } catch (Exception ignored) {}
+                            Log.w(TAG, "Translation model " + model + " returned code " + response.code() + ", msg=" + response.message() + ", body=" + errBody);
                         }
                     } catch (Exception e) {
                         Log.w(TAG, "Translation parse error for " + model + ": " + e.getMessage());
@@ -836,7 +853,11 @@ public class NativeGeminiLiveClient {
                 try { Thread.sleep(20); } catch (Exception ignored) {}
                 continue;
             }
-            if (agentMuted) continue;
+            if (agentMuted || micMuted) {
+                consecutiveVoiceFrames = 0;
+                try { Thread.sleep(20); } catch (Exception ignored) {}
+                continue;
+            }
 
             long now = System.currentTimeMillis();
             boolean currentlyPlaying = isAudioActuallyPlaying();

@@ -482,7 +482,7 @@ public class NativeLiveActivity extends Activity {
                     }
                     if (!lastAi.isEmpty()) {
                         Toast.makeText(NativeLiveActivity.this, en ? "🐢 Replaying last sentence at 0.7x..." : "🐢 正在以 0.7x 慢速重播導師剛才的發言…", Toast.LENGTH_SHORT).show();
-                        OralCoachHelper.speak(NativeLiveActivity.this, lastAi, 0.7f);
+                        playTtsWithMicSuppression(lastAi, 0.7f);
                     } else {
                         Toast.makeText(NativeLiveActivity.this, en ? "No tutor speech to replay yet" : "尚無導師發音記錄可重播", Toast.LENGTH_SHORT).show();
                     }
@@ -502,7 +502,7 @@ public class NativeLiveActivity extends Activity {
             simplerBtn.setOnClickListener(new View.OnClickListener() {
                 @Override public void onClick(View v) {
                     Toast.makeText(NativeLiveActivity.this, en ? "Tip: Say 'Could you please explain that in simpler words?' to your tutor!" : "開口小秘訣：可直接對導師說「Could you please explain that in simpler words?」", Toast.LENGTH_LONG).show();
-                    OralCoachHelper.speak(NativeLiveActivity.this, "Could you please explain that in simpler words?", 1.0f);
+                    playTtsWithMicSuppression("Could you please explain that in simpler words?", 1.0f);
                 }
             });
             scaffoldBar.addView(simplerBtn, new LinearLayout.LayoutParams(0, dp(36), 1f));
@@ -994,12 +994,54 @@ public class NativeLiveActivity extends Activity {
         }
     }
 
+    private final Runnable unmuteMicRunnable = new Runnable() {
+        @Override public void run() {
+            if (client != null) {
+                client.setMicMuted(false);
+            }
+        }
+    };
+
+    private void playTtsWithMicSuppression(final String text, final float rate) {
+        if (text == null || text.trim().isEmpty()) return;
+        if (client != null) {
+            client.setMicMuted(true);
+        }
+        int wordCount = Math.max(1, text.split("\\s+").length);
+        long estimatedDurationMs = (long) ((wordCount * 450L) / Math.max(0.5f, rate)) + 800L;
+
+        if (tts != null && ttsReady) {
+            tts.setSpeechRate(rate);
+            tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "tts_suppressed_" + System.currentTimeMillis());
+        } else {
+            OralCoachHelper.speak(this, text, rate);
+        }
+
+        handler.removeCallbacks(unmuteMicRunnable);
+        handler.postDelayed(unmuteMicRunnable, estimatedDurationMs);
+    }
+
     private void initTts() {
         try {
             tts = new TextToSpeech(this, new TextToSpeech.OnInitListener() {
                 @Override public void onInit(int status) {
                     if (status == TextToSpeech.SUCCESS && tts != null) {
                         tts.setLanguage(Locale.US);
+                        tts.setOnUtteranceProgressListener(new android.speech.tts.UtteranceProgressListener() {
+                            @Override public void onStart(String utteranceId) {
+                                if (client != null) client.setMicMuted(true);
+                            }
+                            @Override public void onDone(String utteranceId) {
+                                handler.postDelayed(new Runnable() {
+                                    @Override public void run() {
+                                        if (client != null) client.setMicMuted(false);
+                                    }
+                                }, 350);
+                            }
+                            @Override public void onError(String utteranceId) {
+                                if (client != null) client.setMicMuted(false);
+                            }
+                        });
                         ttsReady = true;
                     }
                 }
@@ -1008,11 +1050,8 @@ public class NativeLiveActivity extends Activity {
     }
 
     private void speakWord(String word) {
-        if (tts != null && ttsReady) {
-            tts.speak(word, TextToSpeech.QUEUE_FLUSH, null, "pronounce_" + word);
-        } else {
-            Toast.makeText(this, word, Toast.LENGTH_SHORT).show();
-        }
+        if (word == null || word.trim().isEmpty()) return;
+        playTtsWithMicSuppression(word, 1.0f);
     }
 
     // ── 📚 Comprehensive English IPA Phonetic Knowledge Base ──
