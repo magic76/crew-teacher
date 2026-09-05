@@ -451,6 +451,18 @@ public class CourseMapDialog {
                     }
                 });
                 phraseTop.addView(playBtn);
+
+                TextView drillBtn = new TextView(activity);
+                drillBtn.setText("🎙️ 試讀");
+                drillBtn.setTextSize(11);
+                drillBtn.setTextColor(Color.parseColor("#34D399"));
+                drillBtn.setPadding(dp(activity, 6), dp(activity, 2), dp(activity, 6), dp(activity, 2));
+                drillBtn.setOnClickListener(new View.OnClickListener() {
+                    @Override public void onClick(View v) {
+                        OralCoachHelper.showPronunciationDrillDialog(activity, phrase.en, phrase.zh, phrase.note);
+                    }
+                });
+                phraseTop.addView(drillBtn);
                 pCard.addView(phraseTop);
 
                 TextView zhTv = new TextView(activity);

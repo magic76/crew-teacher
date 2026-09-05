@@ -1324,8 +1324,29 @@ public class MainActivity extends Activity {
                         : ("累計收藏 " + items.size() + " 條精選金句與生詞 · 點擊 🔊 聽母語發音"));
                 subtitle.setTextSize(11);
                 subtitle.setTextColor(Color.parseColor("#94A3B8"));
-                subtitle.setPadding(0, dp(4), 0, dp(12));
+                subtitle.setPadding(0, dp(4), 0, dp(10));
                 container.addView(subtitle);
+
+                if (!items.isEmpty()) {
+                    Button quizBtn = new Button(MainActivity.this);
+                    quizBtn.setText(en ? "🃏 30s Flashcard Quiz Game" : "🃏 30 秒抽卡自測小遊戲");
+                    quizBtn.setTextSize(12);
+                    quizBtn.setTextColor(Color.WHITE);
+                    quizBtn.setTypeface(Typeface.DEFAULT_BOLD);
+                    GradientDrawable qbg = new GradientDrawable();
+                    qbg.setColor(Color.parseColor("#4F46E5"));
+                    qbg.setCornerRadius(dp(10));
+                    quizBtn.setBackground(qbg);
+                    quizBtn.setOnClickListener(new View.OnClickListener() {
+                        @Override public void onClick(View v) {
+                            OralCoachHelper.showFlashcardQuizDialog(MainActivity.this);
+                        }
+                    });
+                    LinearLayout.LayoutParams qlp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(40));
+                    qlp.setMargins(0, 0, 0, dp(12));
+                    quizBtn.setLayoutParams(qlp);
+                    container.addView(quizBtn);
+                }
 
                 if (items.isEmpty()) {
                     LinearLayout emptyCard = new LinearLayout(MainActivity.this);

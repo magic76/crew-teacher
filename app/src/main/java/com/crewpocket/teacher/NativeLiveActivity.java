@@ -425,6 +425,83 @@ public class NativeLiveActivity extends Activity {
             root.addView(iceScroll);
         }
 
+        // 3.8 In-Call Quick Scaffolding Bar (💡 提詞靈感 | 🐢 慢速重聽 | 🔄 換句簡單的)
+        if (!isShadowingMode) {
+            LinearLayout scaffoldBar = new LinearLayout(this);
+            scaffoldBar.setOrientation(LinearLayout.HORIZONTAL);
+            scaffoldBar.setGravity(Gravity.CENTER_VERTICAL);
+            scaffoldBar.setPadding(0, dp(4), 0, dp(8));
+
+            Button hintBtn = new Button(this);
+            hintBtn.setText(en ? "💡 Hints" : "💡 提詞靈感");
+            hintBtn.setTextSize(11);
+            hintBtn.setTextColor(Color.WHITE);
+            GradientDrawable hBg = new GradientDrawable();
+            hBg.setColor(Color.parseColor("#1E293B"));
+            hBg.setCornerRadius(dp(10));
+            hBg.setStroke(dp(1), Color.parseColor("#38BDF8"));
+            hintBtn.setBackground(hBg);
+            hintBtn.setOnClickListener(new View.OnClickListener() {
+                @Override public void onClick(View v) {
+                    OralCoachHelper.showHintsBottomSheet(NativeLiveActivity.this, currentLesson, AppConfig.getTutorPersona(NativeLiveActivity.this));
+                }
+            });
+            scaffoldBar.addView(hintBtn, new LinearLayout.LayoutParams(0, dp(36), 1f));
+
+            Button slowBtn = new Button(this);
+            slowBtn.setText(en ? "🐢 Replay (0.7x)" : "🐢 慢速重聽");
+            slowBtn.setTextSize(11);
+            slowBtn.setTextColor(Color.WHITE);
+            GradientDrawable sBg = new GradientDrawable();
+            sBg.setColor(Color.parseColor("#1E293B"));
+            sBg.setCornerRadius(dp(10));
+            sBg.setStroke(dp(1), Color.parseColor("#A855F7"));
+            slowBtn.setBackground(sBg);
+            LinearLayout.LayoutParams slp = new LinearLayout.LayoutParams(0, dp(36), 1f);
+            slp.setMargins(dp(6), 0, dp(6), 0);
+            slowBtn.setLayoutParams(slp);
+            slowBtn.setOnClickListener(new View.OnClickListener() {
+                @Override public void onClick(View v) {
+                    String lastAi = "";
+                    for (int i = turnHistory.size() - 1; i >= 0; i--) {
+                        if ("ai".equals(turnHistory.get(i).role) && turnHistory.get(i).spoken.length() > 0) {
+                            lastAi = turnHistory.get(i).spoken.toString();
+                            break;
+                        }
+                    }
+                    if (lastAi.isEmpty() && currentChatTurn != null && "ai".equals(currentChatTurn.role)) {
+                        lastAi = currentChatTurn.spoken.toString();
+                    }
+                    if (!lastAi.isEmpty()) {
+                        Toast.makeText(NativeLiveActivity.this, en ? "🐢 Replaying last sentence at 0.7x..." : "🐢 正在以 0.7x 慢速重播導師剛才的發言…", Toast.LENGTH_SHORT).show();
+                        OralCoachHelper.speak(NativeLiveActivity.this, lastAi, 0.7f);
+                    } else {
+                        Toast.makeText(NativeLiveActivity.this, en ? "No tutor speech to replay yet" : "尚無導師發音記錄可重播", Toast.LENGTH_SHORT).show();
+                    }
+                }
+            });
+            scaffoldBar.addView(slowBtn);
+
+            Button simplerBtn = new Button(this);
+            simplerBtn.setText(en ? "🔄 Pardon?" : "🔄 換句簡單的");
+            simplerBtn.setTextSize(11);
+            simplerBtn.setTextColor(Color.WHITE);
+            GradientDrawable simBg = new GradientDrawable();
+            simBg.setColor(Color.parseColor("#1E293B"));
+            simBg.setCornerRadius(dp(10));
+            simBg.setStroke(dp(1), Color.parseColor("#10B981"));
+            simplerBtn.setBackground(simBg);
+            simplerBtn.setOnClickListener(new View.OnClickListener() {
+                @Override public void onClick(View v) {
+                    Toast.makeText(NativeLiveActivity.this, en ? "Tip: Say 'Could you please explain that in simpler words?' to your tutor!" : "開口小秘訣：可直接對導師說「Could you please explain that in simpler words?」", Toast.LENGTH_LONG).show();
+                    OralCoachHelper.speak(NativeLiveActivity.this, "Could you please explain that in simpler words?", 1.0f);
+                }
+            });
+            scaffoldBar.addView(simplerBtn, new LinearLayout.LayoutParams(0, dp(36), 1f));
+
+            root.addView(scaffoldBar);
+        }
+
         // 4. Control Buttons Row
         LinearLayout controls = new LinearLayout(this);
         controls.setOrientation(LinearLayout.HORIZONTAL);
@@ -1925,7 +2002,25 @@ public class NativeLiveActivity extends Activity {
                     playBtn.setOnClickListener(new View.OnClickListener() {
                         @Override public void onClick(View v) { speakWord(corr); }
                     });
-                    corRow.addView(playBtn, new LinearLayout.LayoutParams(dp(42), dp(28)));
+                    corRow.addView(playBtn, new LinearLayout.LayoutParams(dp(38), dp(28)));
+
+                    // Drill button (🎙️ 重練跟讀)
+                    Button drillBtn = new Button(this);
+                    drillBtn.setText("🎙️");
+                    drillBtn.setTextSize(11);
+                    drillBtn.setTextColor(Color.WHITE);
+                    GradientDrawable dBg = new GradientDrawable();
+                    dBg.setColor(Color.parseColor("#0D9488"));
+                    dBg.setCornerRadius(dp(6));
+                    drillBtn.setBackground(dBg);
+                    drillBtn.setOnClickListener(new View.OnClickListener() {
+                        @Override public void onClick(View v) {
+                            OralCoachHelper.showPronunciationDrillDialog(NativeLiveActivity.this, corr, orig, expl);
+                        }
+                    });
+                    LinearLayout.LayoutParams dlp = new LinearLayout.LayoutParams(dp(38), dp(28));
+                    dlp.setMargins(dp(3), 0, 0, 0);
+                    corRow.addView(drillBtn, dlp);
 
                     // Star button
                     final boolean isSt = LearningDataManager.isStarred(NativeLiveActivity.this, corr);
@@ -1943,7 +2038,7 @@ public class NativeLiveActivity extends Activity {
                             Toast.makeText(NativeLiveActivity.this, nowStarred ? (en ? "Saved to Phrasebook" : "已收藏至生詞金句本") : (en ? "Removed" : "已取消收藏"), Toast.LENGTH_SHORT).show();
                         }
                     });
-                    corRow.addView(starBtn, new LinearLayout.LayoutParams(dp(36), dp(28)));
+                    corRow.addView(starBtn, new LinearLayout.LayoutParams(dp(34), dp(28)));
                     rcCard.addView(corRow);
 
                     if (!expl.isEmpty()) {
