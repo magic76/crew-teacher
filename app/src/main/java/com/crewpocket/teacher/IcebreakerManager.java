@@ -199,6 +199,18 @@ public class IcebreakerManager {
         return list;
     }
 
+    private static boolean containsChinese(String s) {
+        if (s == null) return false;
+        for (char c : s.toCharArray()) {
+            if (Character.UnicodeBlock.of(c) == Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS
+                    || Character.UnicodeBlock.of(c) == Character.UnicodeBlock.CJK_COMPATIBILITY_IDEOGRAPHS
+                    || Character.UnicodeBlock.of(c) == Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS_EXTENSION_A) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public static void generateAsync(final Context context, final String scenario, final String tutorLangCode, final String studentLangCode, final String currentContext, final GenerateCallback callback) {
         final Handler mainHandler = new Handler(Looper.getMainLooper());
         String apiKey = AppConfig.getGeminiApiKey(context);
@@ -213,21 +225,22 @@ public class IcebreakerManager {
         String studentLangName = MainActivity.getLanguageLabel(studentLangCode);
         String scenarioLabel = scenario != null && !scenario.isEmpty() ? scenario : "Daily Conversation";
 
-        final String prompt = "You are an expert language teacher crafting practical, authentic, level-appropriate spoken example sentences for a student.\n\n"
-                + "Scenario Topic: " + scenarioLabel + "\n"
-                + "Target Spoken Language: " + tutorLangName + " (" + tutorLangCode + ")\n"
-                + "Student Native Language for Translations: " + studentLangName + " (" + studentLangCode + ")\n"
-                + (currentContext != null && !currentContext.isEmpty() ? ("Current Context: " + currentContext + "\n") : "")
-                + "\nREQUIREMENTS:\n"
-                + "1. Generate 6 distinct, highly practical, authentic speaking starter / response sentences in " + tutorLangName + ".\n"
-                + "2. Sentences MUST sound like what a real native speaker would say in this scenario.\n"
-                + "3. Provide a clear, natural translation in " + studentLangName + " for each sentence.\n"
-                + "4. Pick a fitting single emoji for each sentence (e.g. 🧳, ☕, 💼, 🍽️, ✈️, 💡, 🎯, 🛍️, 🗣️).\n"
-                + "5. Output ONLY a valid JSON array of objects with keys: \"emoji\", \"targetPhrase\", \"nativeHint\".\n\n"
-                + "Example JSON format:\n"
+        final String prompt = "You are an expert native language tutor assistant.\n\n"
+                + "CRITICAL INSTRUCTION:\n"
+                + "- The student is practicing speaking in " + tutorLangName + " (" + tutorLangCode + ").\n"
+                + "- Field \"targetPhrase\" MUST BE 100% WRITTEN IN " + tutorLangName + " (" + tutorLangCode + ") ONLY.\n"
+                + "- Field \"nativeHint\" MUST BE WRITTEN IN " + studentLangName + " (" + studentLangCode + ") ONLY.\n"
+                + "- NEVER output Chinese in \"targetPhrase\" (unless the target language being learned is Chinese).\n\n"
+                + "Scenario: " + scenarioLabel + "\n"
+                + "Target Spoken Language (for targetPhrase): " + tutorLangName + " (" + tutorLangCode + ")\n"
+                + "Student Native Language (for nativeHint): " + studentLangName + " (" + studentLangCode + ")\n"
+                + (currentContext != null && !currentContext.isEmpty() ? ("Recent Context: " + currentContext + "\n") : "")
+                + "\nGenerate 6 distinct, highly practical, level-appropriate spoken example sentences.\n"
+                + "Return ONLY a valid JSON array of objects with keys: \"emoji\", \"targetPhrase\", \"nativeHint\".\n\n"
+                + "Example for English learner:\n"
                 + "[\n"
-                + "  {\"emoji\":\"🧳\",\"targetPhrase\":\"Excuse me, where is the baggage claim area?\",\"nativeHint\":\"不好意思，請問行李提取區在哪裡？\"},\n"
-                + "  {\"emoji\":\"☕\",\"targetPhrase\":\"Could I have an iced latte with oat milk, please?\",\"nativeHint\":\"請給我一杯冰拿鐵換燕麥奶，謝謝。\"}\n"
+                + "  {\"emoji\":\"🧳\",\"targetPhrase\":\"Excuse me, where can I find the luggage carts?\",\"nativeHint\":\"不好意思，請問在哪裡可以找到行李推車？\"},\n"
+                + "  {\"emoji\":\"🏨\",\"targetPhrase\":\"Could I request an extra pillow and blanket, please?\",\"nativeHint\":\"可以請你幫我多送一顆枕頭和一條毛毯嗎？\"}\n"
                 + "]";
 
         GeminiApiClient.generateText(context, prompt, new GeminiApiClient.TextCallback() {
@@ -242,11 +255,21 @@ public class IcebreakerManager {
                         jsonStr = jsonStr.substring(start, end + 1);
                     }
                     JSONArray array = new JSONArray(jsonStr);
+                    boolean isTargetChinese = tutorLangCode != null && tutorLangCode.toLowerCase().startsWith("zh");
+
                     for (int i = 0; i < array.length(); i++) {
                         JSONObject obj = array.getJSONObject(i);
                         String emoji = obj.optString("emoji", "💬");
-                        String target = obj.optString("targetPhrase", "");
-                        String hint = obj.optString("nativeHint", "");
+                        String target = obj.optString("targetPhrase", "").trim();
+                        String hint = obj.optString("nativeHint", "").trim();
+
+                        // Safety check: if target learning language is NOT Chinese, but AI swapped target and hint
+                        if (!isTargetChinese && containsChinese(target) && !containsChinese(hint) && !hint.isEmpty()) {
+                            String temp = target;
+                            target = hint;
+                            hint = temp;
+                        }
+
                         if (!target.isEmpty()) {
                             resultList.add(new Icebreaker(emoji, target, hint));
                         }

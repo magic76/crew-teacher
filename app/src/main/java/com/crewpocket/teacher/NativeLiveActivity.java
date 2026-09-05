@@ -84,9 +84,6 @@ public class NativeLiveActivity extends Activity {
     private boolean isOnboardingMode = false;
     private String customPersonaExtra = null;
 
-    // ── 💬 Option: Dynamic Example & Icebreaker Chips ──
-    private LinearLayout iceRow;
-
     private int dp(float val) {
         return CrewTheme.dp(this, val);
     }
@@ -391,14 +388,14 @@ public class NativeLiveActivity extends Activity {
             // Standard Conversational Classroom Transcript Card
             LinearLayout transcriptCard = new LinearLayout(this);
             transcriptCard.setOrientation(LinearLayout.VERTICAL);
-            transcriptCard.setPadding(dp(16), dp(14), dp(16), dp(14));
+            transcriptCard.setPadding(dp(14), dp(10), dp(14), dp(10));
             transcriptCard.setBackground(CrewTheme.createCard(this, CrewTheme.BG_CARD, CrewTheme.BORDER_DEFAULT, 16));
             LinearLayout.LayoutParams tLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f);
-            tLp.setMargins(0, 0, 0, dp(18));
+            tLp.setMargins(0, 0, 0, dp(8));
             transcriptCard.setLayoutParams(tLp);
 
             TextView tTitle = new TextView(this);
-            tTitle.setText(en ? "💬 Real-time Transcript" : "💬 即時對話逐字紀錄");
+            tTitle.setText(en ? "💬 Real-time Transcript & Feedback" : "💬 即時對話逐字與回饋");
             tTitle.setTextSize(12);
             tTitle.setTextColor(CrewTheme.TEXT_MUTED);
             tTitle.setTypeface(Typeface.DEFAULT_BOLD);
@@ -421,36 +418,18 @@ public class NativeLiveActivity extends Activity {
             renderChatCards();
         }
 
-        // 3.5 【情境一鍵話題破冰泡泡】Icebreaker Topic Chips Row
-        if (!isShadowingMode) {
-            HorizontalScrollView iceScroll = new HorizontalScrollView(this);
-            iceScroll.setHorizontalScrollBarEnabled(false);
-            iceScroll.setVerticalScrollBarEnabled(false);
-            iceScroll.setOverScrollMode(View.OVER_SCROLL_NEVER);
-            LinearLayout.LayoutParams iLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-            iLp.setMargins(0, 0, 0, dp(10));
-            iceScroll.setLayoutParams(iLp);
-
-            iceRow = new LinearLayout(this);
-            iceRow.setOrientation(LinearLayout.HORIZONTAL);
-            iceRow.setGravity(Gravity.CENTER_VERTICAL);
-            renderIcebreakerChips();
-
-            iceScroll.addView(iceRow);
-            root.addView(iceScroll);
-        }
-
-        // 3.8 In-Call Quick Scaffolding Bar (💡 提詞靈感 | 🐢 慢速重聽 | 🔄 換句簡單的)
+        // 3.8 In-Call Quick Scaffolding Bar (💡 範例與提詞 | 🐢 慢速重聽 | 🔄 換句簡單的)
         if (!isShadowingMode) {
             LinearLayout scaffoldBar = new LinearLayout(this);
             scaffoldBar.setOrientation(LinearLayout.HORIZONTAL);
             scaffoldBar.setGravity(Gravity.CENTER_VERTICAL);
-            scaffoldBar.setPadding(0, dp(4), 0, dp(8));
+            scaffoldBar.setPadding(0, 0, 0, dp(6));
 
             Button hintBtn = new Button(this);
-            hintBtn.setText(en ? "💡 Hints" : "💡 提詞靈感");
+            hintBtn.setText(en ? "💡 Examples & Hints" : "💡 範例與提詞");
             hintBtn.setTextSize(11);
             hintBtn.setTextColor(Color.WHITE);
+            hintBtn.setTypeface(Typeface.DEFAULT_BOLD);
             GradientDrawable hBg = new GradientDrawable();
             hBg.setColor(Color.parseColor("#1E293B"));
             hBg.setCornerRadius(dp(10));
@@ -461,7 +440,7 @@ public class NativeLiveActivity extends Activity {
                     OralCoachHelper.showHintsBottomSheet(NativeLiveActivity.this, currentLesson, AppConfig.getTutorPersona(NativeLiveActivity.this));
                 }
             });
-            scaffoldBar.addView(hintBtn, new LinearLayout.LayoutParams(0, dp(36), 1f));
+            scaffoldBar.addView(hintBtn, new LinearLayout.LayoutParams(0, dp(36), 1.15f));
 
             Button slowBtn = new Button(this);
             slowBtn.setText(en ? "🐢 Replay (0.7x)" : "🐢 慢速重聽");
@@ -472,7 +451,7 @@ public class NativeLiveActivity extends Activity {
             sBg.setCornerRadius(dp(10));
             sBg.setStroke(dp(1), Color.parseColor("#A855F7"));
             slowBtn.setBackground(sBg);
-            LinearLayout.LayoutParams slp = new LinearLayout.LayoutParams(0, dp(36), 1f);
+            LinearLayout.LayoutParams slp = new LinearLayout.LayoutParams(0, dp(36), 0.95f);
             slp.setMargins(dp(6), 0, dp(6), 0);
             slowBtn.setLayoutParams(slp);
             slowBtn.setOnClickListener(new View.OnClickListener() {
@@ -512,7 +491,7 @@ public class NativeLiveActivity extends Activity {
                     playTtsWithMicSuppression("Could you please explain that in simpler words?", 1.0f);
                 }
             });
-            scaffoldBar.addView(simplerBtn, new LinearLayout.LayoutParams(0, dp(36), 1f));
+            scaffoldBar.addView(simplerBtn, new LinearLayout.LayoutParams(0, dp(36), 0.95f));
 
             root.addView(scaffoldBar);
         }
@@ -1270,123 +1249,6 @@ public class NativeLiveActivity extends Activity {
         if (clean.endsWith("ed")) return "注意結尾 /t/ 或 /d/ 輕音";
         if (clean.endsWith("ing")) return "注意尾音 /ŋ/ 鼻音";
         return "注意母音飽滿度與音節重音";
-    }
-
-    // ── 💬 Dynamic Example & Icebreaker Chips Renderer ──
-    private void renderIcebreakerChips() {
-        if (iceRow == null) return;
-        iceRow.removeAllViews();
-        final boolean en = I18n.isEnglish(this);
-
-        // 1. Permanent AI Generator Button Chip
-        final LinearLayout genChip = new LinearLayout(this);
-        genChip.setOrientation(LinearLayout.HORIZONTAL);
-        genChip.setGravity(Gravity.CENTER_VERTICAL);
-        genChip.setPadding(dp(12), dp(7), dp(12), dp(7));
-        GradientDrawable gBg = new GradientDrawable();
-        gBg.setColors(new int[]{Color.parseColor("#4F46E5"), Color.parseColor("#7C3AED")});
-        gBg.setOrientation(GradientDrawable.Orientation.LEFT_RIGHT);
-        gBg.setCornerRadius(dp(16));
-        gBg.setStroke(dp(1), Color.parseColor("#A855F7"));
-        genChip.setBackground(gBg);
-        LinearLayout.LayoutParams gLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        gLp.setMargins(0, 0, dp(8), 0);
-        genChip.setLayoutParams(gLp);
-
-        final TextView genText = new TextView(this);
-        genText.setText(en ? "✨ AI Generate New" : "✨ AI 換一批 / 生成");
-        genText.setTextSize(11);
-        genText.setTextColor(Color.WHITE);
-        genText.setTypeface(Typeface.DEFAULT_BOLD);
-        genChip.addView(genText);
-
-        genChip.setOnClickListener(new View.OnClickListener() {
-            @Override public void onClick(View v) {
-                if (AppConfig.getGeminiApiKey(NativeLiveActivity.this).isEmpty()) {
-                    showApiKeyDialog();
-                    return;
-                }
-                genText.setText(en ? "⏳ Generating..." : "⏳ AI 生成中…");
-                genChip.setEnabled(false);
-
-                String persona = isLessonMode && currentLesson != null && currentLesson.scenario != null
-                        ? currentLesson.scenario : (customPersonaExtra != null ? customPersonaExtra : AppConfig.getTutorPersona(NativeLiveActivity.this));
-                String tutorLang = AppConfig.getTutorLanguage(NativeLiveActivity.this);
-                String studentLang = AppConfig.getStudentLanguage(NativeLiveActivity.this);
-
-                // Collect last turn context if available
-                String lastContext = "";
-                for (int i = turnHistory.size() - 1; i >= 0; i--) {
-                    if ("ai".equals(turnHistory.get(i).role) && turnHistory.get(i).spoken.length() > 0) {
-                        lastContext = "Tutor just said: \"" + turnHistory.get(i).spoken.toString() + "\"";
-                        break;
-                    }
-                }
-
-                IcebreakerManager.generateAsync(NativeLiveActivity.this, persona, tutorLang, studentLang, lastContext, new IcebreakerManager.GenerateCallback() {
-                    @Override public void onSuccess(List<IcebreakerManager.Icebreaker> generatedList) {
-                        genChip.setEnabled(true);
-                        renderIcebreakerChips();
-                        Toast.makeText(NativeLiveActivity.this, en ? "✨ Generated " + generatedList.size() + " new speaking starters!" : "✨ 已為您生成 " + generatedList.size() + " 句全新範例金句！", Toast.LENGTH_SHORT).show();
-                    }
-
-                    @Override public void onError(String errorMessage) {
-                        genChip.setEnabled(true);
-                        genText.setText(en ? "✨ AI Generate New" : "✨ AI 換一批 / 生成");
-                        Toast.makeText(NativeLiveActivity.this, "⚠️ " + errorMessage, Toast.LENGTH_LONG).show();
-                    }
-                });
-            }
-        });
-        iceRow.addView(genChip);
-
-        // 2. Render all sentence chips
-        if (isLessonMode && currentLesson != null && currentLesson.warmupPhrases != null && !currentLesson.warmupPhrases.isEmpty()) {
-            for (final CourseModel.WarmupPhrase wp : currentLesson.warmupPhrases) {
-                LinearLayout chip = makeSentenceChip("⚡", wp.en, (en ? wp.en : wp.zh) + (wp.ipa != null && !wp.ipa.isEmpty() ? " [" + wp.ipa + "]" : ""));
-                iceRow.addView(chip);
-            }
-        }
-
-        String tutorLang = AppConfig.getTutorLanguage(this);
-        String persona = isLessonMode && currentLesson != null && currentLesson.scenario != null
-                ? currentLesson.scenario : (customPersonaExtra != null ? customPersonaExtra : AppConfig.getTutorPersona(this));
-        List<IcebreakerManager.Icebreaker> icebreakers = IcebreakerManager.getIcebreakersForScenario(persona, tutorLang);
-
-        for (final IcebreakerManager.Icebreaker ib : icebreakers) {
-            LinearLayout chip = makeSentenceChip(ib.emoji, ib.targetPhrase, ib.nativeHint);
-            iceRow.addView(chip);
-        }
-    }
-
-    private LinearLayout makeSentenceChip(final String emoji, final String targetPhrase, final String hintText) {
-        final boolean en = I18n.isEnglish(this);
-        LinearLayout chip = new LinearLayout(this);
-        chip.setOrientation(LinearLayout.HORIZONTAL);
-        chip.setGravity(Gravity.CENTER_VERTICAL);
-        chip.setPadding(dp(12), dp(7), dp(12), dp(7));
-        GradientDrawable cBg = new GradientDrawable();
-        cBg.setColor(Color.parseColor("#1E293B"));
-        cBg.setCornerRadius(dp(16));
-        cBg.setStroke(dp(1), Color.parseColor("#334155"));
-        chip.setBackground(cBg);
-        LinearLayout.LayoutParams cLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        cLp.setMargins(0, 0, dp(8), 0);
-        chip.setLayoutParams(cLp);
-
-        TextView cText = new TextView(this);
-        cText.setText(emoji + " " + targetPhrase);
-        cText.setTextSize(11);
-        cText.setTextColor(Color.parseColor("#E0E7FF"));
-        chip.addView(cText);
-
-        chip.setOnClickListener(new View.OnClickListener() {
-            @Override public void onClick(View v) {
-                speakWord(targetPhrase);
-                Toast.makeText(NativeLiveActivity.this, "💡 " + hintText + "\n(" + (en ? "Read aloud into mic to practice!" : "點擊聽發音，可直接對麥克風朗讀！") + ")", Toast.LENGTH_SHORT).show();
-            }
-        });
-        return chip;
     }
 
     private void toggleCall() {
