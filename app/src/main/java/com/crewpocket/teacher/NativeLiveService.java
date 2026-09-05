@@ -88,6 +88,7 @@ public class NativeLiveService extends Service {
     public int onStartCommand(Intent intent, int flags, int startId) {
         String action = intent != null ? intent.getAction() : null;
         if (ACTION_STOP.equals(action)) {
+            FloatingBubbleManager.getInstance(this).hideBubble();
             end("使用者手動掛斷");
             return START_NOT_STICKY;
         }

@@ -21,9 +21,11 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
+import android.widget.PopupMenu;
 import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
+import android.view.MenuItem;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -239,46 +241,39 @@ public class MainActivity extends Activity {
 
         headerRow.addView(brandTextCol, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
 
-        // Guide / Onboarding Button
-        Button guideBtn = new Button(this);
-        guideBtn.setText(en ? "🧭 Guide" : "🧭 指南");
-        guideBtn.setTextSize(11);
-        guideBtn.setTextColor(Color.parseColor("#E0E7FF"));
-        guideBtn.setTypeface(Typeface.DEFAULT_BOLD);
-        GradientDrawable gBg = new GradientDrawable();
-        gBg.setColor(Color.parseColor("#312E81")); // Indigo 900
-        gBg.setCornerRadius(dp(12));
-        gBg.setStroke(dp(1), Color.parseColor("#6366F1")); // Indigo 500
-        guideBtn.setBackground(gBg);
-        LinearLayout.LayoutParams gLp = new LinearLayout.LayoutParams(dp(68), dp(34));
-        gLp.setMargins(0, 0, dp(6), 0);
-        guideBtn.setLayoutParams(gLp);
-        guideBtn.setOnClickListener(new View.OnClickListener() {
-            @Override public void onClick(View v) {
-                WelcomeGuideDialog.show(MainActivity.this, new Runnable() {
-                    @Override public void run() { renderCurrentPage(); }
-                });
-            }
-        });
-        headerRow.addView(guideBtn);
+        // Top Right Menu Dropdown Button (replacing cramped buttons)
+        final boolean bubbleActive = NativeLiveService.isActive() || FloatingBubbleManager.getInstance(this).isBubbleShowing();
+        
+        LinearLayout menuBtnContainer = new LinearLayout(this);
+        menuBtnContainer.setOrientation(LinearLayout.HORIZONTAL);
+        menuBtnContainer.setGravity(Gravity.CENTER_VERTICAL);
 
-        // Quick Language Switch Pill Button
-        Button langToggleBtn = new Button(this);
-        langToggleBtn.setText(en ? "🇨🇳 中文" : "🇺🇸 EN");
-        langToggleBtn.setTextSize(11);
-        langToggleBtn.setTextColor(Color.WHITE);
-        GradientDrawable ltBg = new GradientDrawable();
-        ltBg.setColor(Color.parseColor("#1E293B"));
-        ltBg.setCornerRadius(dp(12));
-        ltBg.setStroke(dp(1), Color.parseColor("#475569"));
-        langToggleBtn.setBackground(ltBg);
-        langToggleBtn.setOnClickListener(new View.OnClickListener() {
+        if (bubbleActive) {
+            TextView activeBadge = new TextView(this);
+            activeBadge.setText("🫧");
+            activeBadge.setTextSize(14);
+            activeBadge.setPadding(0, 0, dp(6), 0);
+            menuBtnContainer.addView(activeBadge);
+        }
+
+        final TextView menuBtn = new TextView(this);
+        menuBtn.setText("⋮");
+        menuBtn.setTextSize(22);
+        menuBtn.setTextColor(Color.parseColor("#E2E8F0"));
+        menuBtn.setGravity(Gravity.CENTER);
+        menuBtn.setPadding(0, 0, 0, 0);
+        GradientDrawable mbBg = new GradientDrawable();
+        mbBg.setColor(Color.parseColor("#1E293B"));
+        mbBg.setCornerRadius(dp(12));
+        mbBg.setStroke(dp(1), Color.parseColor("#334155"));
+        menuBtn.setBackground(mbBg);
+        menuBtn.setOnClickListener(new View.OnClickListener() {
             @Override public void onClick(View v) {
-                AppConfig.setUiLanguage(MainActivity.this, en ? "zh" : "en");
-                renderCurrentPage();
+                showTopHeaderMenu(v);
             }
         });
-        headerRow.addView(langToggleBtn, new LinearLayout.LayoutParams(dp(68), dp(34)));
+        menuBtnContainer.addView(menuBtn, new LinearLayout.LayoutParams(dp(38), dp(36)));
+        headerRow.addView(menuBtnContainer);
         pageContent.addView(headerRow);
 
         // 2. Status Card Banner
@@ -406,6 +401,15 @@ public class MainActivity extends Activity {
             }
         });
         pageContent.addView(startBtn);
+
+        // 3.5 Floating Bubble Quick Launcher Card on Home Page
+        boolean hasOverlayPerm = FloatingBubbleManager.getInstance(this).canDrawOverlays();
+        String bubbleStatus = bubbleActive ? (en ? "🟢 Floating Bubble Active · Tap to stop" : "🟢 桌面懸浮泡泡運行中 · 點擊關閉")
+                : (hasOverlayPerm ? (en ? "🫧 Tap to launch desktop floating bubble tutor" : "🫧 點擊開啟桌面懸浮球助教 (跨 App 練習)")
+                : (en ? "⚠️ Tap to grant overlay permission" : "⚠️ 需開啟懸浮視窗權限 · 點擊開啟"));
+        pageContent.addView(makeActionCard("🫧", en ? "Desktop Floating Bubble" : "桌面懸浮球助教", bubbleStatus, bubbleActive ? Color.parseColor("#38BDF8") : CrewTheme.CYAN_400, new View.OnClickListener() {
+            @Override public void onClick(View v) { toggleFloatingBubbleService(); }
+        }));
 
         // 4. Quick Mode & Scenario Grid
         TextView modeHeading = new TextView(this);
@@ -1082,6 +1086,39 @@ public class MainActivity extends Activity {
         }
     }
 
+    private void showTopHeaderMenu(View anchor) {
+        final boolean en = I18n.isEnglish(this);
+        PopupMenu popup = new PopupMenu(this, anchor);
+        boolean bubbleActive = NativeLiveService.isActive() || FloatingBubbleManager.getInstance(this).isBubbleShowing();
+
+        popup.getMenu().add(0, 1, 0, bubbleActive ? (en ? "🫧 Turn Off Floating Bubble" : "🫧 關閉桌面懸浮球")
+                                                  : (en ? "🫧 Turn On Floating Bubble" : "🫧 開啟桌面懸浮球"));
+        popup.getMenu().add(0, 2, 1, en ? "🧭 Onboarding Guide" : "🧭 新手引導指南");
+        popup.getMenu().add(0, 3, 2, en ? "🇨🇳 切換為繁體中文" : "🇺🇸 Switch to English");
+
+        popup.setOnMenuItemClickListener(new PopupMenu.OnMenuItemClickListener() {
+            @Override
+            public boolean onMenuItemClick(MenuItem item) {
+                int id = item.getItemId();
+                if (id == 1) {
+                    toggleFloatingBubbleService();
+                    return true;
+                } else if (id == 2) {
+                    WelcomeGuideDialog.show(MainActivity.this, new Runnable() {
+                        @Override public void run() { renderCurrentPage(); }
+                    });
+                    return true;
+                } else if (id == 3) {
+                    AppConfig.setUiLanguage(MainActivity.this, en ? "zh" : "en");
+                    renderCurrentPage();
+                    return true;
+                }
+                return false;
+            }
+        });
+        popup.show();
+    }
+
     private void toggleFloatingBubbleService() {
         final boolean en = I18n.isEnglish(this);
         if (!FloatingBubbleManager.getInstance(this).canDrawOverlays()) {
@@ -1104,8 +1141,10 @@ public class MainActivity extends Activity {
             return;
         }
 
-        if (NativeLiveService.isActive()) {
+        boolean isActive = NativeLiveService.isActive() || FloatingBubbleManager.getInstance(this).isBubbleShowing();
+        if (isActive) {
             NativeLiveService.stop(this);
+            FloatingBubbleManager.getInstance(this).hideBubble();
             Toast.makeText(this, en ? "Floating Bubble stopped" : "已關閉懸浮球助教", Toast.LENGTH_SHORT).show();
         } else {
             String apiKey = AppConfig.getGeminiApiKey(this);
@@ -1123,7 +1162,7 @@ public class MainActivity extends Activity {
     private void showFloatingBubbleDialog() {
         final boolean en = I18n.isEnglish(this);
         boolean hasOverlay = FloatingBubbleManager.getInstance(this).canDrawOverlays();
-        boolean isRunning = NativeLiveService.isActive();
+        boolean isRunning = NativeLiveService.isActive() || FloatingBubbleManager.getInstance(this).isBubbleShowing();
 
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         builder.setTitle(en ? "🫧 Floating Bubble Tutor" : "🫧 桌面懸浮球外語助教");
@@ -1140,6 +1179,7 @@ public class MainActivity extends Activity {
             builder.setPositiveButton(en ? "⏹️ Stop Bubble" : "⏹️ 關閉懸浮球", new DialogInterface.OnClickListener() {
                 @Override public void onClick(DialogInterface dialog, int which) {
                     NativeLiveService.stop(MainActivity.this);
+                    FloatingBubbleManager.getInstance(MainActivity.this).hideBubble();
                     renderCurrentPage();
                     Toast.makeText(MainActivity.this, en ? "Floating Bubble stopped" : "已關閉懸浮球助教", Toast.LENGTH_SHORT).show();
                 }

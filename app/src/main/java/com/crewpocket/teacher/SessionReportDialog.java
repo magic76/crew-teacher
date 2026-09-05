@@ -51,7 +51,7 @@ public class SessionReportDialog {
         container.setBackground(cBg);
 
         final List<LearningDataManager.StarredItem> allReportItems = new ArrayList<LearningDataManager.StarredItem>();
-        final List<Button> allStarButtons = new ArrayList<Button>();
+        final List<TextView> allStarButtons = new ArrayList<TextView>();
 
         // 1. Header Bar: Title & Close Button
         LinearLayout headRow = new LinearLayout(activity);
@@ -299,43 +299,46 @@ public class SessionReportDialog {
                     cTv.setTypeface(Typeface.DEFAULT_BOLD);
                     corRow.addView(cTv, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
 
-                    // Listen button
-                    Button playBtn = new Button(activity);
+                    // Listen button (🔊 示範發音)
+                    TextView playBtn = new TextView(activity);
                     playBtn.setText("🔊");
-                    playBtn.setTextSize(11);
-                    playBtn.setTextColor(Color.WHITE);
+                    playBtn.setTextSize(14);
+                    playBtn.setGravity(Gravity.CENTER);
+                    playBtn.setPadding(0, 0, 0, 0);
                     GradientDrawable pBg = new GradientDrawable();
                     pBg.setColor(Color.parseColor("#4F46E5"));
-                    pBg.setCornerRadius(dp(activity, 6));
+                    pBg.setCornerRadius(dp(activity, 8));
                     playBtn.setBackground(pBg);
                     playBtn.setOnClickListener(new View.OnClickListener() {
                         @Override public void onClick(View v) { OralCoachHelper.speak(activity, corr, 1.0f); }
                     });
-                    corRow.addView(playBtn, new LinearLayout.LayoutParams(dp(activity, 38), dp(activity, 28)));
+                    corRow.addView(playBtn, new LinearLayout.LayoutParams(dp(activity, 34), dp(activity, 30)));
 
                     // Drill button (🎙️ 重練跟讀)
-                    Button drillBtn = new Button(activity);
+                    TextView drillBtn = new TextView(activity);
                     drillBtn.setText("🎙️");
-                    drillBtn.setTextSize(11);
-                    drillBtn.setTextColor(Color.WHITE);
+                    drillBtn.setTextSize(14);
+                    drillBtn.setGravity(Gravity.CENTER);
+                    drillBtn.setPadding(0, 0, 0, 0);
                     GradientDrawable dBg = new GradientDrawable();
                     dBg.setColor(Color.parseColor("#0D9488"));
-                    dBg.setCornerRadius(dp(activity, 6));
+                    dBg.setCornerRadius(dp(activity, 8));
                     drillBtn.setBackground(dBg);
                     drillBtn.setOnClickListener(new View.OnClickListener() {
                         @Override public void onClick(View v) {
                             OralCoachHelper.showPronunciationDrillDialog(activity, corr, orig, expl);
                         }
                     });
-                    LinearLayout.LayoutParams dlp = new LinearLayout.LayoutParams(dp(activity, 38), dp(activity, 28));
-                    dlp.setMargins(dp(activity, 3), 0, 0, 0);
+                    LinearLayout.LayoutParams dlp = new LinearLayout.LayoutParams(dp(activity, 34), dp(activity, 30));
+                    dlp.setMargins(dp(activity, 5), 0, 0, 0);
                     corRow.addView(drillBtn, dlp);
 
                     // Star button
                     final boolean isSt = LearningDataManager.isStarred(activity, corr);
-                    final Button starBtn = new Button(activity);
+                    final TextView starBtn = new TextView(activity);
                     starBtn.setText(isSt ? "★" : "☆");
-                    starBtn.setTextSize(13);
+                    starBtn.setTextSize(16);
+                    starBtn.setGravity(Gravity.CENTER);
                     starBtn.setTextColor(isSt ? Color.parseColor("#FBBF24") : Color.parseColor("#94A3B8"));
                     starBtn.setBackground(null);
                     starBtn.setPadding(0, 0, 0, 0);
@@ -347,7 +350,9 @@ public class SessionReportDialog {
                             Toast.makeText(activity, nowStarred ? (en ? "Saved to Phrasebook" : "已收藏至生詞金句本") : (en ? "Removed" : "已取消收藏"), Toast.LENGTH_SHORT).show();
                         }
                     });
-                    corRow.addView(starBtn, new LinearLayout.LayoutParams(dp(activity, 34), dp(activity, 28)));
+                    LinearLayout.LayoutParams slp = new LinearLayout.LayoutParams(dp(activity, 34), dp(activity, 30));
+                    slp.setMargins(dp(activity, 5), 0, 0, 0);
+                    corRow.addView(starBtn, slp);
                     allStarButtons.add(starBtn);
                     rcCard.addView(corRow);
 
@@ -424,23 +429,25 @@ public class SessionReportDialog {
                     }
                     tkCard.addView(textCol, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
 
-                    Button pBtn = new Button(activity);
+                    TextView pBtn = new TextView(activity);
                     pBtn.setText("🔊");
-                    pBtn.setTextSize(11);
-                    pBtn.setTextColor(Color.WHITE);
+                    pBtn.setTextSize(14);
+                    pBtn.setGravity(Gravity.CENTER);
+                    pBtn.setPadding(0, 0, 0, 0);
                     GradientDrawable pbBg = new GradientDrawable();
                     pbBg.setColor(Color.parseColor("#4F46E5"));
-                    pbBg.setCornerRadius(dp(activity, 6));
+                    pbBg.setCornerRadius(dp(activity, 8));
                     pBtn.setBackground(pbBg);
                     pBtn.setOnClickListener(new View.OnClickListener() {
                         @Override public void onClick(View v) { OralCoachHelper.speak(activity, phrase, 1.0f); }
                     });
-                    tkCard.addView(pBtn, new LinearLayout.LayoutParams(dp(activity, 42), dp(activity, 28)));
+                    tkCard.addView(pBtn, new LinearLayout.LayoutParams(dp(activity, 34), dp(activity, 30)));
 
                     final boolean isStarred = LearningDataManager.isStarred(activity, phrase);
-                    final Button starBtn = new Button(activity);
+                    final TextView starBtn = new TextView(activity);
                     starBtn.setText(isStarred ? "★" : "☆");
-                    starBtn.setTextSize(13);
+                    starBtn.setTextSize(16);
+                    starBtn.setGravity(Gravity.CENTER);
                     starBtn.setTextColor(isStarred ? Color.parseColor("#FBBF24") : Color.parseColor("#94A3B8"));
                     starBtn.setBackground(null);
                     starBtn.setPadding(0, 0, 0, 0);
@@ -452,7 +459,9 @@ public class SessionReportDialog {
                             Toast.makeText(activity, nowStarred ? (en ? "Saved to Phrasebook" : "已收藏至生詞金句本") : (en ? "Removed" : "已取消收藏"), Toast.LENGTH_SHORT).show();
                         }
                     });
-                    tkCard.addView(starBtn, new LinearLayout.LayoutParams(dp(activity, 34), dp(activity, 28)));
+                    LinearLayout.LayoutParams slp = new LinearLayout.LayoutParams(dp(activity, 34), dp(activity, 30));
+                    slp.setMargins(dp(activity, 5), 0, 0, 0);
+                    tkCard.addView(starBtn, slp);
                     allStarButtons.add(starBtn);
 
                     container.addView(tkCard);
@@ -479,7 +488,7 @@ public class SessionReportDialog {
                     for (LearningDataManager.StarredItem item : allReportItems) {
                         LearningDataManager.toggleStarItem(activity, item.originalText, item.translation, item.category, item.notes);
                     }
-                    for (Button b : allStarButtons) {
+                    for (TextView b : allStarButtons) {
                         b.setText("★");
                         b.setTextColor(Color.parseColor("#FBBF24"));
                     }

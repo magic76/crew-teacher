@@ -342,14 +342,7 @@ public class NativeGeminiLiveClient {
                         JSONObject fc = calls.getJSONObject(i);
                         String name = fc.optString("name", "");
                         String id = fc.optString("id", "call_0");
-                        if ("end_voice_session".equals(name)) {
-                            sendToolResponse(id, name, new JSONObject().put("status", "ended"));
-                            interruptionHandler.postDelayed(new Runnable() {
-                                @Override public void run() { stop(); }
-                            }, 500);
-                        } else {
-                            sendToolResponse(id, name, new JSONObject().put("status", "ok"));
-                        }
+                        sendToolResponse(id, name, new JSONObject().put("status", "ok"));
                     }
                 }
             }
@@ -406,13 +399,6 @@ public class NativeGeminiLiveClient {
         String langName = getLanguageDisplayName(tutorLang);
         String teachingMode = AppConfig.getTeachingMode(context);
         String nativeLang = AppConfig.getStudentLanguageDisplayName(context);
-
-        // Tool declarations
-        JSONArray tools = new JSONArray();
-        tools.put(new JSONObject().put("name", "end_voice_session")
-                .put("description", "End the tutoring voice call when the user says goodbye, hang up, or exit (e.g. 結束, 掛斷, 再見, 先這樣, bye)."));
-
-        setup.put("tools", new JSONArray().put(new JSONObject().put("functionDeclarations", tools)));
 
         String personaDetail;
         if ("travel".equals(tutorPersona)) {
@@ -538,10 +524,6 @@ public class NativeGeminiLiveClient {
         GeminiApiClient.generateFastSubtitle(apiKey, practiceLang, targetLang, sourceText, new GeminiApiClient.JsonCallback() {
             @Override
             public void onSuccess(JSONObject obj, String rawText) {
-                if (turnId != currentTranslationTurnId) {
-                    // Stale turn result dropped so we never display lagged out-of-order translations
-                    return;
-                }
                 String mainTrans = obj.optString("translation", "").trim();
                 String keyVocab = obj.optString("key_vocab", "").trim();
                 JSONArray hintsArr = obj.optJSONArray("suggested_replies");

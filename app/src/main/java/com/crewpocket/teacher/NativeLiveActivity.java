@@ -164,6 +164,32 @@ public class NativeLiveActivity extends Activity {
         title.setTypeface(Typeface.DEFAULT_BOLD);
         header.addView(title, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
 
+        // Top Action Buttons: 💡 範例提詞 + 🧭 導覽
+        LinearLayout topActions = new LinearLayout(this);
+        topActions.setOrientation(LinearLayout.HORIZONTAL);
+        topActions.setGravity(Gravity.CENTER_VERTICAL);
+
+        if (!isShadowingMode) {
+            Button topHintBtn = new Button(this);
+            topHintBtn.setText(en ? "💡 Hints" : "💡 提詞");
+            topHintBtn.setTextSize(11);
+            topHintBtn.setTextColor(Color.parseColor("#38BDF8"));
+            topHintBtn.setTypeface(Typeface.DEFAULT_BOLD);
+            GradientDrawable thBg = new GradientDrawable();
+            thBg.setColor(Color.parseColor("#0F172A"));
+            thBg.setCornerRadius(dp(12));
+            thBg.setStroke(dp(1), Color.parseColor("#38BDF8"));
+            topHintBtn.setBackground(thBg);
+            topHintBtn.setOnClickListener(new View.OnClickListener() {
+                @Override public void onClick(View v) {
+                    OralCoachHelper.showHintsBottomSheet(NativeLiveActivity.this, currentLesson, AppConfig.getTutorPersona(NativeLiveActivity.this));
+                }
+            });
+            LinearLayout.LayoutParams thLp = new LinearLayout.LayoutParams(dp(68), dp(32));
+            thLp.setMargins(0, 0, dp(6), 0);
+            topActions.addView(topHintBtn, thLp);
+        }
+
         Button topGuideBtn = new Button(this);
         topGuideBtn.setText(en ? "🧭 Guide" : "🧭 導覽");
         topGuideBtn.setTextSize(11);
@@ -179,7 +205,9 @@ public class NativeLiveActivity extends Activity {
                 WelcomeGuideDialog.show(NativeLiveActivity.this, null);
             }
         });
-        header.addView(topGuideBtn, new LinearLayout.LayoutParams(dp(68), dp(32)));
+        topActions.addView(topGuideBtn, new LinearLayout.LayoutParams(dp(68), dp(32)));
+
+        header.addView(topActions);
         root.addView(header);
 
         // 2. Status Row
@@ -428,10 +456,10 @@ public class NativeLiveActivity extends Activity {
             Button hintBtn = new Button(this);
             hintBtn.setText(en ? "💡 Examples & Hints" : "💡 範例與提詞");
             hintBtn.setTextSize(11);
-            hintBtn.setTextColor(Color.WHITE);
+            hintBtn.setTextColor(Color.parseColor("#38BDF8"));
             hintBtn.setTypeface(Typeface.DEFAULT_BOLD);
             GradientDrawable hBg = new GradientDrawable();
-            hBg.setColor(Color.parseColor("#1E293B"));
+            hBg.setColor(Color.parseColor("#0F172A"));
             hBg.setCornerRadius(dp(10));
             hBg.setStroke(dp(1), Color.parseColor("#38BDF8"));
             hintBtn.setBackground(hBg);
@@ -440,7 +468,7 @@ public class NativeLiveActivity extends Activity {
                     OralCoachHelper.showHintsBottomSheet(NativeLiveActivity.this, currentLesson, AppConfig.getTutorPersona(NativeLiveActivity.this));
                 }
             });
-            scaffoldBar.addView(hintBtn, new LinearLayout.LayoutParams(0, dp(36), 1.15f));
+            scaffoldBar.addView(hintBtn, new LinearLayout.LayoutParams(0, dp(38), 1.15f));
 
             Button slowBtn = new Button(this);
             slowBtn.setText(en ? "🐢 Replay (0.7x)" : "🐢 慢速重聽");
@@ -1397,12 +1425,18 @@ public class NativeLiveActivity extends Activity {
 
         sessionStartTime = System.currentTimeMillis();
         sessionEvaluated = false;
+        try {
+            getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        } catch (Exception ignored) {}
         client.start();
     }
 
     private void stopClient(String reason) {
         int durationSec = sessionStartTime > 0 ? (int) ((System.currentTimeMillis() - sessionStartTime) / 1000) : 0;
         sessionStartTime = 0;
+        try {
+            getWindow().clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        } catch (Exception ignored) {}
         if (client != null) {
             client.stop();
             client = null;
@@ -1478,28 +1512,73 @@ public class NativeLiveActivity extends Activity {
     private void applyStructuredSubtitleData(String targetText, String nativeTrans, String keyVocab, java.util.List<String> hints) {
         String cleanTrans = nativeTrans != null ? nativeTrans.trim() : "";
         String cleanVocab = keyVocab != null ? keyVocab.trim() : "";
+        if (cleanTrans.isEmpty() && cleanVocab.isEmpty() && (hints == null || hints.isEmpty())) return;
 
-        if (currentChatTurn != null && "ai".equals(currentChatTurn.role)) {
-            currentChatTurn.translation = cleanTrans;
-            currentChatTurn.keyVocab = cleanVocab;
-            currentChatTurn.hints.clear();
-            if (hints != null) currentChatTurn.hints.addAll(hints);
-            currentChatTurn.translationRevealed = true;
-            renderChatCards();
-            return;
+        String cleanTarget = targetText != null ? targetText.trim() : "";
+        ChatTurn matchedTurn = null;
+
+        // 1. Precise text matching against spoken content (check current turn and history)
+        if (!cleanTarget.isEmpty()) {
+            if (currentChatTurn != null && "ai".equals(currentChatTurn.role)) {
+                String curSpoken = currentChatTurn.spoken.toString().trim();
+                if (curSpoken.equals(cleanTarget) || curSpoken.startsWith(cleanTarget) || cleanTarget.startsWith(curSpoken)) {
+                    matchedTurn = currentChatTurn;
+                }
+            }
+            if (matchedTurn == null) {
+                for (int i = turnHistory.size() - 1; i >= 0; i--) {
+                    ChatTurn t = turnHistory.get(i);
+                    if ("ai".equals(t.role)) {
+                        String tSpoken = t.spoken.toString().trim();
+                        if (tSpoken.equals(cleanTarget) || tSpoken.startsWith(cleanTarget) || cleanTarget.startsWith(tSpoken)) {
+                            matchedTurn = t;
+                            break;
+                        }
+                    }
+                }
+            }
         }
 
-        for (int i = turnHistory.size() - 1; i >= 0; i--) {
-            ChatTurn t = turnHistory.get(i);
-            if ("ai".equals(t.role)) {
-                t.translation = cleanTrans;
-                t.keyVocab = cleanVocab;
-                t.hints.clear();
-                if (hints != null) t.hints.addAll(hints);
-                t.translationRevealed = true;
-                renderChatCards();
-                return;
+        // 2. Fallback: Find the most recent AI turn that doesn't have translation yet
+        if (matchedTurn == null) {
+            if (currentChatTurn != null && "ai".equals(currentChatTurn.role) && currentChatTurn.translation.isEmpty()) {
+                matchedTurn = currentChatTurn;
+            } else {
+                for (int i = turnHistory.size() - 1; i >= 0; i--) {
+                    ChatTurn t = turnHistory.get(i);
+                    if ("ai".equals(t.role) && t.translation.isEmpty()) {
+                        matchedTurn = t;
+                        break;
+                    }
+                }
             }
+        }
+
+        // 3. Fallback: Latest AI turn
+        if (matchedTurn == null) {
+            if (currentChatTurn != null && "ai".equals(currentChatTurn.role)) {
+                matchedTurn = currentChatTurn;
+            } else {
+                for (int i = turnHistory.size() - 1; i >= 0; i--) {
+                    ChatTurn t = turnHistory.get(i);
+                    if ("ai".equals(t.role)) {
+                        matchedTurn = t;
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (matchedTurn != null) {
+            if (!cleanTrans.isEmpty()) matchedTurn.translation = cleanTrans;
+            if (!cleanVocab.isEmpty()) matchedTurn.keyVocab = cleanVocab;
+            if (hints != null && !hints.isEmpty()) {
+                matchedTurn.hints.clear();
+                matchedTurn.hints.addAll(hints);
+            }
+            matchedTurn.translationRevealed = true;
+            renderChatCards();
+            return;
         }
 
         if (currentChatTurn != null && currentChatTurn.spoken.length() > 0) {
@@ -1507,7 +1586,7 @@ public class NativeLiveActivity extends Activity {
         }
         currentChatTurn = new ChatTurn();
         currentChatTurn.role = "ai";
-        if (targetText != null && !targetText.isEmpty()) currentChatTurn.spoken.append(targetText);
+        if (!cleanTarget.isEmpty()) currentChatTurn.spoken.append(cleanTarget);
         currentChatTurn.translation = cleanTrans;
         currentChatTurn.keyVocab = cleanVocab;
         currentChatTurn.hints.clear();
@@ -1519,35 +1598,7 @@ public class NativeLiveActivity extends Activity {
     private void applyTranslation(String text) {
         if (text == null || text.trim().isEmpty()) return;
         String clean = text.trim();
-        if (currentChatTurn != null && "ai".equals(currentChatTurn.role)) {
-            if (currentChatTurn.translation.isEmpty()) {
-                currentChatTurn.translation = clean;
-            }
-            if (client != null && !client.isAiSpeaking()) {
-                currentChatTurn.translationRevealed = true;
-            }
-            renderChatCards();
-        } else {
-            for (int i = turnHistory.size() - 1; i >= 0; i--) {
-                ChatTurn t = turnHistory.get(i);
-                if ("ai".equals(t.role) && t.translation.isEmpty()) {
-                    t.translation = clean;
-                    t.translationRevealed = true;
-                    renderChatCards();
-                    return;
-                }
-            }
-            if (currentChatTurn != null && currentChatTurn.spoken.length() > 0) {
-                turnHistory.add(currentChatTurn);
-            }
-            currentChatTurn = new ChatTurn();
-            currentChatTurn.role = "ai";
-            currentChatTurn.translation = clean;
-            if (client != null && !client.isAiSpeaking()) {
-                currentChatTurn.translationRevealed = true;
-            }
-            renderChatCards();
-        }
+        applyStructuredSubtitleData(null, clean, null, null);
     }
 
     private void renderChatCards() {

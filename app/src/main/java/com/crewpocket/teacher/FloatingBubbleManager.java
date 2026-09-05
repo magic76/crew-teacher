@@ -565,28 +565,73 @@ public class FloatingBubbleManager {
             @Override public void run() {
                 String cleanTrans = nativeTrans != null ? nativeTrans.trim() : "";
                 String cleanVocab = keyVocab != null ? keyVocab.trim() : "";
+                if (cleanTrans.isEmpty() && cleanVocab.isEmpty() && (hints == null || hints.isEmpty())) return;
 
-                if (currentBubbleChatTurn != null && "ai".equals(currentBubbleChatTurn.role)) {
-                    currentBubbleChatTurn.translation = cleanTrans;
-                    currentBubbleChatTurn.keyVocab = cleanVocab;
-                    currentBubbleChatTurn.hints.clear();
-                    if (hints != null) currentBubbleChatTurn.hints.addAll(hints);
-                    currentBubbleChatTurn.translationRevealed = true;
-                    renderBubbleChatCards();
-                    return;
+                String cleanTarget = targetText != null ? targetText.trim() : "";
+                BubbleChatTurn matchedTurn = null;
+
+                // 1. Match by spoken text against bubble turns
+                if (!cleanTarget.isEmpty()) {
+                    if (currentBubbleChatTurn != null && "ai".equals(currentBubbleChatTurn.role)) {
+                        String curSpoken = currentBubbleChatTurn.spoken.toString().trim();
+                        if (curSpoken.equals(cleanTarget) || curSpoken.startsWith(cleanTarget) || cleanTarget.startsWith(curSpoken)) {
+                            matchedTurn = currentBubbleChatTurn;
+                        }
+                    }
+                    if (matchedTurn == null) {
+                        for (int i = bubbleTurnHistory.size() - 1; i >= 0; i--) {
+                            BubbleChatTurn t = bubbleTurnHistory.get(i);
+                            if ("ai".equals(t.role)) {
+                                String tSpoken = t.spoken.toString().trim();
+                                if (tSpoken.equals(cleanTarget) || tSpoken.startsWith(cleanTarget) || cleanTarget.startsWith(tSpoken)) {
+                                    matchedTurn = t;
+                                    break;
+                                }
+                            }
+                        }
+                    }
                 }
 
-                for (int i = bubbleTurnHistory.size() - 1; i >= 0; i--) {
-                    BubbleChatTurn t = bubbleTurnHistory.get(i);
-                    if ("ai".equals(t.role)) {
-                        t.translation = cleanTrans;
-                        t.keyVocab = cleanVocab;
-                        t.hints.clear();
-                        if (hints != null) t.hints.addAll(hints);
-                        t.translationRevealed = true;
-                        renderBubbleChatCards();
-                        return;
+                // 2. Fallback: Find most recent AI turn without translation
+                if (matchedTurn == null) {
+                    if (currentBubbleChatTurn != null && "ai".equals(currentBubbleChatTurn.role) && currentBubbleChatTurn.translation.isEmpty()) {
+                        matchedTurn = currentBubbleChatTurn;
+                    } else {
+                        for (int i = bubbleTurnHistory.size() - 1; i >= 0; i--) {
+                            BubbleChatTurn t = bubbleTurnHistory.get(i);
+                            if ("ai".equals(t.role) && t.translation.isEmpty()) {
+                                matchedTurn = t;
+                                break;
+                            }
+                        }
                     }
+                }
+
+                // 3. Fallback: Latest AI turn
+                if (matchedTurn == null) {
+                    if (currentBubbleChatTurn != null && "ai".equals(currentBubbleChatTurn.role)) {
+                        matchedTurn = currentBubbleChatTurn;
+                    } else {
+                        for (int i = bubbleTurnHistory.size() - 1; i >= 0; i--) {
+                            BubbleChatTurn t = bubbleTurnHistory.get(i);
+                            if ("ai".equals(t.role)) {
+                                matchedTurn = t;
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                if (matchedTurn != null) {
+                    if (!cleanTrans.isEmpty()) matchedTurn.translation = cleanTrans;
+                    if (!cleanVocab.isEmpty()) matchedTurn.keyVocab = cleanVocab;
+                    if (hints != null && !hints.isEmpty()) {
+                        matchedTurn.hints.clear();
+                        matchedTurn.hints.addAll(hints);
+                    }
+                    matchedTurn.translationRevealed = true;
+                    renderBubbleChatCards();
+                    return;
                 }
 
                 if (currentBubbleChatTurn != null && currentBubbleChatTurn.spoken.length() > 0) {
@@ -594,7 +639,7 @@ public class FloatingBubbleManager {
                 }
                 currentBubbleChatTurn = new BubbleChatTurn();
                 currentBubbleChatTurn.role = "ai";
-                if (targetText != null && !targetText.isEmpty()) currentBubbleChatTurn.spoken.append(targetText);
+                if (!cleanTarget.isEmpty()) currentBubbleChatTurn.spoken.append(cleanTarget);
                 currentBubbleChatTurn.translation = cleanTrans;
                 currentBubbleChatTurn.keyVocab = cleanVocab;
                 currentBubbleChatTurn.hints.clear();
@@ -608,35 +653,7 @@ public class FloatingBubbleManager {
     private void applyBubbleTranslation(String text) {
         if (text == null || text.trim().isEmpty()) return;
         String clean = text.trim();
-        if (currentBubbleChatTurn != null && "ai".equals(currentBubbleChatTurn.role)) {
-            if (currentBubbleChatTurn.translation.isEmpty()) {
-                currentBubbleChatTurn.translation = clean;
-            }
-            if (!NativeLiveService.isAiSpeaking()) {
-                currentBubbleChatTurn.translationRevealed = true;
-            }
-            renderBubbleChatCards();
-        } else {
-            for (int i = bubbleTurnHistory.size() - 1; i >= 0; i--) {
-                BubbleChatTurn t = bubbleTurnHistory.get(i);
-                if ("ai".equals(t.role) && t.translation.isEmpty()) {
-                    t.translation = clean;
-                    t.translationRevealed = true;
-                    renderBubbleChatCards();
-                    return;
-                }
-            }
-            if (currentBubbleChatTurn != null && currentBubbleChatTurn.spoken.length() > 0) {
-                bubbleTurnHistory.add(currentBubbleChatTurn);
-            }
-            currentBubbleChatTurn = new BubbleChatTurn();
-            currentBubbleChatTurn.role = "ai";
-            currentBubbleChatTurn.translation = clean;
-            if (!NativeLiveService.isAiSpeaking()) {
-                currentBubbleChatTurn.translationRevealed = true;
-            }
-            renderBubbleChatCards();
-        }
+        applyStructuredSubtitleData(null, clean, null, null);
     }
 
     private void renderBubbleChatCards() {
