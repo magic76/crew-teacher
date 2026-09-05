@@ -57,6 +57,7 @@ public class LearningDataManager {
         public int streakDays = 0;
         public int todayTurns = 0;
         public int todaySeconds = 0;
+        public int todayPracticeSeconds = 0;
         public int dailyGoalTurns = 10;
         public boolean isGoalCompleted = false;
         public String formattedTodayTime = "0 分鐘";
@@ -71,6 +72,16 @@ public class LearningDataManager {
     }
 
     // ── Streak & Daily Progress ──
+
+    public static int getDailyGoalMinutes(Context context) {
+        if (context == null) return 15;
+        return getPrefs(context).getInt("daily_goal_minutes", 15);
+    }
+
+    public static void setDailyGoalMinutes(Context context, int min) {
+        if (context == null) return;
+        getPrefs(context).edit().putInt("daily_goal_minutes", min).apply();
+    }
 
     public static synchronized StreakInfo getStreakInfo(Context context) {
         SharedPreferences sp = getPrefs(context);
@@ -103,6 +114,7 @@ public class LearningDataManager {
         info.streakDays = streak;
         info.todayTurns = todayTurns;
         info.todaySeconds = todaySeconds;
+        info.todayPracticeSeconds = todaySeconds;
         info.dailyGoalTurns = sp.getInt(KEY_DAILY_GOAL_TURNS, 10);
         info.isGoalCompleted = todayTurns >= info.dailyGoalTurns;
         info.formattedTodayTime = (todaySeconds / 60) + " 分鐘";

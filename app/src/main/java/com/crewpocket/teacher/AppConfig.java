@@ -245,4 +245,36 @@ public class AppConfig {
         if (context == null) return;
         getPrefs(context).edit().putString(KEY_CUSTOM_PROMPT, prompt == null ? "" : prompt.trim()).apply();
     }
+
+    public static String getCustomPrompt(Context context) {
+        return getCustomSystemPrompt(context);
+    }
+
+    public static void setCustomPrompt(Context context, String prompt) {
+        setCustomSystemPrompt(context, prompt);
+    }
+
+    public static String getTutorLanguageDisplayName(Context context) {
+        String code = getTutorLanguage(context);
+        return getLanguageLabel(code);
+    }
+
+    public static String getLanguageLabel(String code) {
+        if ("en".equalsIgnoreCase(code)) return "English (英語)";
+        if ("ja".equalsIgnoreCase(code)) return "Japanese (日本語)";
+        if ("ko".equalsIgnoreCase(code)) return "Korean (한국어)";
+        if ("es".equalsIgnoreCase(code)) return "Spanish (Español)";
+        if ("zh".equalsIgnoreCase(code) || "zh-TW".equalsIgnoreCase(code)) return "Chinese (中文)";
+        if ("fr".equalsIgnoreCase(code)) return "French (Français)";
+        if ("de".equalsIgnoreCase(code)) return "German (Deutsch)";
+        if ("it".equalsIgnoreCase(code)) return "Italian (Italiano)";
+        if ("pt".equalsIgnoreCase(code)) return "Portuguese (Português)";
+        if ("ru".equalsIgnoreCase(code)) return "Russian (Русский)";
+        if ("vi".equalsIgnoreCase(code)) return "Vietnamese (Tiếng Việt)";
+        if ("id".equalsIgnoreCase(code)) return "Indonesian (Bahasa Indonesia)";
+        if ("th".equalsIgnoreCase(code)) return "Thai (ภาษาไทย)";
+        if ("ar".equalsIgnoreCase(code)) return "Arabic (العربية)";
+        if ("hi".equalsIgnoreCase(code)) return "Hindi (हिन्दी)";
+        return "English (英語)";
+    }
 }
