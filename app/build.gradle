@@ -10,8 +10,8 @@ android {
         applicationId "com.crewpocket.teacher"
         minSdk 24
         targetSdk 34
-        versionCode 69
-        versionName "1.8.4"
+        versionCode 70
+        versionName "1.8.5"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }

@@ -547,9 +547,16 @@ public class NativeGeminiLiveClient {
                 if (keyVocab.isEmpty()) {
                     keyVocab = extractFieldByRegex(rawText, "key_vocab");
                 }
+                if (mainTrans.isEmpty()) {
+                    mainTrans = extractFieldByRegex(rawText, "t");
+                }
+                if (keyVocab.isEmpty()) {
+                    keyVocab = extractFieldByRegex(rawText, "v");
+                }
                 if (mainTrans.isEmpty() && !rawText.isEmpty() && !rawText.startsWith("{")) {
                     mainTrans = rawText;
                 }
+                Log.d(TAG, "translateAsync success: mainTrans=" + mainTrans + ", vocab=" + keyVocab);
                 if (!mainTrans.isEmpty()) {
                     listener.onSubtitleData(sourceText, mainTrans, keyVocab, hints);
                 }
