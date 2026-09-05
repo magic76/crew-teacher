@@ -1573,7 +1573,7 @@ public class NativeLiveActivity extends Activity {
         }
 
         // AI Scaffolding Sub-card (Translation + Vocab + Hints)
-        if (isAi && turn.translationRevealed && (!turn.translation.isEmpty() || !turn.keyVocab.isEmpty() || !turn.hints.isEmpty())) {
+        if (isAi && (!turn.translation.isEmpty() || !turn.keyVocab.isEmpty() || !turn.hints.isEmpty())) {
             LinearLayout subCard = new LinearLayout(this);
             subCard.setOrientation(LinearLayout.VERTICAL);
             subCard.setPadding(dp(12), dp(10), dp(12), dp(10));

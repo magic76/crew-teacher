@@ -508,9 +508,9 @@ public class NativeGeminiLiveClient {
 
     private static final String[] TRANSLATION_MODELS = {
             "gemini-2.0-flash",
+            "gemini-2.0-flash-lite",
             "gemini-1.5-flash",
-            "gemini-2.5-flash",
-            "gemini-2.0-flash-lite"
+            "gemini-1.5-pro"
     };
 
     private void translateAsync(final String sourceText) {
@@ -548,6 +548,7 @@ public class NativeGeminiLiveClient {
             JSONObject genConfig = new JSONObject();
             genConfig.put("temperature", 0.2);
             genConfig.put("maxOutputTokens", 1024);
+            genConfig.put("responseMimeType", "application/json");
             root.put("generationConfig", genConfig);
 
             String url = "https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent?key=" + apiKey;
@@ -570,11 +571,14 @@ public class NativeGeminiLiveClient {
                                     JSONArray resParts = content.optJSONArray("parts");
                                     if (resParts != null && resParts.length() > 0) {
                                         String raw = resParts.getJSONObject(0).optString("text", "").trim();
-                                        if (raw.startsWith("```")) {
-                                            raw = raw.replaceAll("^```(?:json)?\\s*", "").replaceAll("\\s*```$", "");
+                                        String jsonToParse = raw;
+                                        int firstBrace = raw.indexOf("{");
+                                        int lastBrace = raw.lastIndexOf("}");
+                                        if (firstBrace >= 0 && lastBrace > firstBrace) {
+                                            jsonToParse = raw.substring(firstBrace, lastBrace + 1);
                                         }
                                         try {
-                                            JSONObject obj = new JSONObject(raw);
+                                            JSONObject obj = new JSONObject(jsonToParse);
                                             String mainTrans = obj.optString("translation", "").trim();
                                             String keyVocab = obj.optString("key_vocab", "").trim();
                                             JSONArray hintsArr = obj.optJSONArray("suggested_replies");
@@ -590,26 +594,30 @@ public class NativeGeminiLiveClient {
                                                 return;
                                             }
                                         } catch (Exception parseJsonErr) {
-                                            // Fallback: extract fields by regex
-                                            String mainTrans = extractFieldByRegex(raw, "translation");
-                                            String keyVocab = extractFieldByRegex(raw, "key_vocab");
-                                            if (!mainTrans.isEmpty()) {
-                                                listener.onSubtitleData(sourceText, mainTrans, keyVocab, new java.util.ArrayList<String>());
-                                                return;
-                                            }
-                                            // Fallback if plain text returned without JSON formatting
-                                            if (!raw.isEmpty() && !raw.startsWith("{")) {
-                                                listener.onSubtitleData(sourceText, raw, "", new java.util.ArrayList<String>());
-                                                return;
-                                            }
+                                            Log.w(TAG, "JSON parse error: " + parseJsonErr.getMessage() + ", raw=" + raw);
+                                        }
+                                        String mainTrans = extractFieldByRegex(raw, "translation");
+                                        String keyVocab = extractFieldByRegex(raw, "key_vocab");
+                                        if (!mainTrans.isEmpty()) {
+                                            listener.onSubtitleData(sourceText, mainTrans, keyVocab, new java.util.ArrayList<String>());
+                                            return;
+                                        }
+                                        if (!raw.isEmpty()) {
+                                            listener.onSubtitleData(sourceText, raw, "", new java.util.ArrayList<String>());
+                                            return;
                                         }
                                     }
                                 }
                             }
+                        } else {
+                            Log.w(TAG, "Translation model " + model + " returned code " + response.code() + ", msg=" + response.message());
                         }
-                        Log.w(TAG, "Translation model " + model + " returned code " + response.code());
                     } catch (Exception e) {
                         Log.w(TAG, "Translation parse error for " + model + ": " + e.getMessage());
+                    } finally {
+                        if (response != null) {
+                            try { response.close(); } catch (Exception ignored) {}
+                        }
                     }
                     tryTranslateAt(modelIdx + 1, sourceText, prompt);
                 }
