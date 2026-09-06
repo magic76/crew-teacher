@@ -69,6 +69,10 @@ public class NativeLiveActivity extends Activity {
     private LinearLayout diagnosticCard;
     private TextView scoreBadge;
     private LinearLayout troubleWordsContainer;
+    // Teacher advice must remain visible in shadowing mode.
+    private final List<String> readingCoachNotes = new ArrayList<String>();
+    private TextView readingCoachNotesText;
+    private String lastReadingCoachNote = "";
     private TextToSpeech tts;
     private boolean ttsReady = false;
 
@@ -133,81 +137,83 @@ public class NativeLiveActivity extends Activity {
         root.setBackgroundColor(CrewTheme.BG_PRIMARY);
         root.setLayoutParams(new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
 
-        // 1. Back button & Title
+        // 1. Focused session header: one title, one contextual hint action, overflow for everything else.
         LinearLayout header = new LinearLayout(this);
         header.setOrientation(LinearLayout.HORIZONTAL);
         header.setGravity(Gravity.CENTER_VERTICAL);
 
         TextView backBtn = new TextView(this);
-        backBtn.setText(en ? "‹ Back" : "‹ 返回");
-        backBtn.setTextSize(15);
-        backBtn.setTextColor(CrewTheme.INDIGO_400);
-        backBtn.setTypeface(Typeface.DEFAULT_BOLD);
-        backBtn.setPadding(0, 0, dp(14), 0);
+        backBtn.setText("‹");
+        backBtn.setTextSize(28);
+        backBtn.setTextColor(Color.parseColor("#CBD5E1"));
+        backBtn.setGravity(Gravity.CENTER);
+        backBtn.setContentDescription(en ? "Back" : "返回");
         backBtn.setOnClickListener(new View.OnClickListener() {
             @Override public void onClick(View v) { finish(); }
         });
-        header.addView(backBtn);
+        header.addView(backBtn, new LinearLayout.LayoutParams(dp(40), dp(40)));
+
+        LinearLayout titleCol = new LinearLayout(this);
+        titleCol.setOrientation(LinearLayout.VERTICAL);
+        titleCol.setPadding(dp(8), 0, dp(8), 0);
 
         TextView title = new TextView(this);
         if (isLessonMode && currentLesson != null) {
-            title.setText("🎯 " + currentLesson.getTitle(en));
+            title.setText(currentLesson.getTitle(en));
         } else if (isOnboardingMode) {
-            title.setText(en ? "🧭 AI Onboarding Guide" : "🧭 AI 新手領航與學習顧問");
+            title.setText(en ? "Learning guide" : "學習導覽");
         } else {
             title.setText(isShadowingMode
-                    ? (en ? "📖 Reading & Pronunciation Coach" : "📖 朗讀高亮與發音診斷")
-                    : (en ? "🎓 Oral Practice Classroom" : "🎓 口語即時對話教室"));
+                    ? (en ? "Pronunciation practice" : "朗讀糾音")
+                    : (en ? "Conversation practice" : "口語對話"));
         }
         title.setTextColor(Color.WHITE);
         title.setTextSize(16);
         title.setTypeface(Typeface.DEFAULT_BOLD);
-        header.addView(title, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        titleCol.addView(title);
 
-        // Top Action Buttons: 💡 範例提詞 + 🧭 導覽
-        LinearLayout topActions = new LinearLayout(this);
-        topActions.setOrientation(LinearLayout.HORIZONTAL);
-        topActions.setGravity(Gravity.CENTER_VERTICAL);
+        TextView sessionSubtitle = new TextView(this);
+        sessionSubtitle.setText(isLessonMode ? (en ? "Complete the mission by speaking naturally" : "自然開口，完成任務即可")
+                : (isShadowingMode ? (en ? "Read · diagnose · retry" : "朗讀 · 診斷 · 重練")
+                : (en ? "Speak first. Use hints only when needed." : "先說，需要時再看提詞")));
+        sessionSubtitle.setTextColor(Color.parseColor("#64748B"));
+        sessionSubtitle.setTextSize(10);
+        titleCol.addView(sessionSubtitle);
+        header.addView(titleCol, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
 
         if (!isShadowingMode) {
             Button topHintBtn = new Button(this);
-            topHintBtn.setText(en ? "💡 Hints" : "💡 提詞");
+            topHintBtn.setText(en ? "Hint" : "提詞");
             topHintBtn.setTextSize(11);
-            topHintBtn.setTextColor(Color.parseColor("#38BDF8"));
+            topHintBtn.setTextColor(Color.parseColor("#BFDBFE"));
             topHintBtn.setTypeface(Typeface.DEFAULT_BOLD);
             GradientDrawable thBg = new GradientDrawable();
-            thBg.setColor(Color.parseColor("#0F172A"));
+            thBg.setColor(Color.parseColor("#172554"));
             thBg.setCornerRadius(dp(12));
-            thBg.setStroke(dp(1), Color.parseColor("#38BDF8"));
+            thBg.setStroke(dp(1), Color.parseColor("#3B82F6"));
             topHintBtn.setBackground(thBg);
             topHintBtn.setOnClickListener(new View.OnClickListener() {
                 @Override public void onClick(View v) {
                     OralCoachHelper.showHintsBottomSheet(NativeLiveActivity.this, currentLesson, AppConfig.getTutorPersona(NativeLiveActivity.this));
                 }
             });
-            LinearLayout.LayoutParams thLp = new LinearLayout.LayoutParams(dp(68), dp(32));
-            thLp.setMargins(0, 0, dp(6), 0);
-            topActions.addView(topHintBtn, thLp);
+            LinearLayout.LayoutParams hintLp = new LinearLayout.LayoutParams(dp(62), dp(34));
+            hintLp.setMargins(0, 0, dp(6), 0);
+            header.addView(topHintBtn, hintLp);
         }
 
-        Button topGuideBtn = new Button(this);
-        topGuideBtn.setText(en ? "🧭 Guide" : "🧭 導覽");
-        topGuideBtn.setTextSize(11);
-        topGuideBtn.setTextColor(Color.parseColor("#E0E7FF"));
-        topGuideBtn.setTypeface(Typeface.DEFAULT_BOLD);
-        GradientDrawable tgBg = new GradientDrawable();
-        tgBg.setColor(Color.parseColor("#312E81"));
-        tgBg.setCornerRadius(dp(12));
-        tgBg.setStroke(dp(1), Color.parseColor("#6366F1"));
-        topGuideBtn.setBackground(tgBg);
-        topGuideBtn.setOnClickListener(new View.OnClickListener() {
+        TextView moreBtn = new TextView(this);
+        moreBtn.setText("⋮");
+        moreBtn.setTextSize(22);
+        moreBtn.setTextColor(Color.parseColor("#94A3B8"));
+        moreBtn.setGravity(Gravity.CENTER);
+        moreBtn.setContentDescription(en ? "More options" : "更多選項");
+        moreBtn.setOnClickListener(new View.OnClickListener() {
             @Override public void onClick(View v) {
                 WelcomeGuideDialog.show(NativeLiveActivity.this, null);
             }
         });
-        topActions.addView(topGuideBtn, new LinearLayout.LayoutParams(dp(68), dp(32)));
-
-        header.addView(topActions);
+        header.addView(moreBtn, new LinearLayout.LayoutParams(dp(34), dp(40)));
         root.addView(header);
 
         // 2. Status Row
@@ -216,11 +222,11 @@ public class NativeLiveActivity extends Activity {
         statusBox.setGravity(Gravity.CENTER_VERTICAL);
         statusBox.setPadding(dp(12), dp(8), dp(12), dp(8));
         GradientDrawable sbg = new GradientDrawable();
-        sbg.setColor(Color.parseColor("#1E293B"));
+        sbg.setColor(Color.parseColor("#111827"));
         sbg.setCornerRadius(dp(12));
         statusBox.setBackground(sbg);
         LinearLayout.LayoutParams sLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        sLp.setMargins(0, dp(12), 0, dp(12));
+        sLp.setMargins(0, dp(10), 0, dp(10));
         statusBox.setLayoutParams(sLp);
 
         statusDot = new TextView(this);
@@ -231,16 +237,17 @@ public class NativeLiveActivity extends Activity {
         statusBox.addView(statusDot);
 
         statusText = new TextView(this);
-        statusText.setText(en ? "Standby (Tap Start below)" : "待命中（點擊下方開始練習）");
+        statusText.setText(en ? "Ready to practice" : "準備開始");
         statusText.setTextColor(CrewTheme.TEXT_SECONDARY);
         statusText.setTextSize(12);
         statusText.setTypeface(Typeface.DEFAULT_BOLD);
         statusBox.addView(statusText, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
 
         meterText = new TextView(this);
-        meterText.setText("🎙️ -- dB");
+        meterText.setText("-- dB");
         meterText.setTextColor(CrewTheme.TEXT_MUTED);
         meterText.setTextSize(11);
+        meterText.setVisibility(View.GONE);
         statusBox.addView(meterText);
         root.addView(statusBox);
 
@@ -296,6 +303,39 @@ public class NativeLiveActivity extends Activity {
             bHeader.addView(scoreBadge);
             boardCard.addView(bHeader);
 
+            // Persistent teacher feedback: spoken advice should never disappear.
+            LinearLayout coachNotesCard = new LinearLayout(this);
+            coachNotesCard.setOrientation(LinearLayout.VERTICAL);
+            coachNotesCard.setPadding(dp(12), dp(10), dp(12), dp(10));
+            GradientDrawable cnBg = new GradientDrawable();
+            cnBg.setColor(Color.parseColor("#111827"));
+            cnBg.setCornerRadius(dp(12));
+            cnBg.setStroke(dp(1), Color.parseColor("#334155"));
+            coachNotesCard.setBackground(cnBg);
+            LinearLayout.LayoutParams cnLp = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            cnLp.setMargins(0, dp(10), 0, dp(6));
+            coachNotesCard.setLayoutParams(cnLp);
+
+            TextView coachNotesTitle = new TextView(this);
+            coachNotesTitle.setText(en ? "Teacher notes" : "老師糾音筆記");
+            coachNotesTitle.setTextSize(12);
+            coachNotesTitle.setTextColor(Color.parseColor("#A5B4FC"));
+            coachNotesTitle.setTypeface(Typeface.DEFAULT_BOLD);
+            coachNotesCard.addView(coachNotesTitle);
+
+            readingCoachNotesText = new TextView(this);
+            readingCoachNotesText.setText(
+                    en ? "Corrections and pronunciation tips will stay here."
+                       : "老師說過的發音修正與建議會保留在這裡。");
+            readingCoachNotesText.setTextSize(13);
+            readingCoachNotesText.setTextColor(Color.parseColor("#E5E7EB"));
+            readingCoachNotesText.setLineSpacing(0, 1.12f);
+            readingCoachNotesText.setPadding(0, dp(5), 0, 0);
+            coachNotesCard.addView(readingCoachNotesText);
+
+            boardCard.addView(coachNotesCard);
+
             // Action Toolbar
             HorizontalScrollView actionScroll = new HorizontalScrollView(this);
             actionScroll.setVerticalScrollBarEnabled(false);
@@ -307,7 +347,7 @@ public class NativeLiveActivity extends Activity {
 
             // ✨ AI New Passage Button
             Button aiGenBtn = new Button(this);
-            aiGenBtn.setText(en ? "✨ AI New" : "✨ 換一篇");
+            aiGenBtn.setText(en ? "New" : "換一篇");
             aiGenBtn.setTextSize(11);
             aiGenBtn.setTextColor(Color.WHITE);
             GradientDrawable aBg = new GradientDrawable();
@@ -325,7 +365,7 @@ public class NativeLiveActivity extends Activity {
 
             // ✏️ Custom Passage Button
             Button customBtn = new Button(this);
-            customBtn.setText(en ? "✏️ Custom" : "✏️ 自訂");
+            customBtn.setText(en ? "Custom" : "自訂");
             customBtn.setTextSize(11);
             customBtn.setTextColor(Color.WHITE);
             GradientDrawable cBg = new GradientDrawable();
@@ -343,7 +383,7 @@ public class NativeLiveActivity extends Activity {
 
             // 🔄 Reset / Restart Button
             Button resetBtn = new Button(this);
-            resetBtn.setText(en ? "🔄 Restart" : "🔄 重新");
+            resetBtn.setText(en ? "Retry" : "重練");
             resetBtn.setTextSize(11);
             resetBtn.setTextColor(Color.WHITE);
             GradientDrawable rBg = new GradientDrawable();
@@ -362,7 +402,7 @@ public class NativeLiveActivity extends Activity {
 
             // 📊 Diagnostic Report Modal Button
             Button reportBtn = new Button(this);
-            reportBtn.setText(en ? "📊 Report" : "📊 評分診斷");
+            reportBtn.setText(en ? "Report" : "診斷");
             reportBtn.setTextSize(11);
             reportBtn.setTextColor(Color.WHITE);
             GradientDrawable repBg = new GradientDrawable();
@@ -720,6 +760,75 @@ public class NativeLiveActivity extends Activity {
         }
     }
 
+    private void appendReadingCoachNote(String text) {
+        if (text == null) return;
+        String note = text.trim().replaceAll("\s+", " ");
+        if (note.length() < 8) return;
+
+        if (note.equals(lastReadingCoachNote)) return;
+        if (!lastReadingCoachNote.isEmpty()
+                && (note.startsWith(lastReadingCoachNote)
+                    || lastReadingCoachNote.startsWith(note))) {
+            if (note.length() <= lastReadingCoachNote.length()) return;
+            if (!readingCoachNotes.isEmpty()) {
+                readingCoachNotes.remove(readingCoachNotes.size() - 1);
+            }
+        }
+        lastReadingCoachNote = note;
+        readingCoachNotes.add(note);
+        while (readingCoachNotes.size() > 6) {
+            readingCoachNotes.remove(0);
+        }
+
+        markTeacherFocusWords(note);
+        renderReadingCoachNotes();
+    }
+
+    private void renderReadingCoachNotes() {
+        if (readingCoachNotesText == null) return;
+        boolean en = I18n.isEnglish(this);
+        if (readingCoachNotes.isEmpty()) {
+            readingCoachNotesText.setText(
+                    en ? "Corrections and pronunciation tips will stay here."
+                       : "老師說過的發音修正與建議會保留在這裡。");
+            return;
+        }
+
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < readingCoachNotes.size(); i++) {
+            if (i > 0) sb.append("\n\n");
+            sb.append(i + 1).append(". ").append(readingCoachNotes.get(i));
+        }
+        readingCoachNotesText.setText(sb.toString());
+    }
+
+    private void markTeacherFocusWords(String teacherText) {
+        if (teacherText == null || cleanWords == null || wordStates == null) return;
+        String lower = teacherText.toLowerCase(Locale.US);
+
+        boolean isCorrection =
+                lower.contains("pronoun") || lower.contains("stress")
+                || lower.contains("vowel") || lower.contains("ending")
+                || lower.contains("sound") || lower.contains("syllable")
+                || teacherText.contains("發音") || teacherText.contains("重音")
+                || teacherText.contains("母音") || teacherText.contains("尾音")
+                || teacherText.contains("音節") || teacherText.contains("連音");
+        if (!isCorrection) return;
+
+        boolean changed = false;
+        for (int i = 0; i < cleanWords.length; i++) {
+            String w = cleanWords[i];
+            if (w == null || w.length() < 4) continue;
+            if (lower.matches(".*\\b" + java.util.regex.Pattern.quote(w) + "\\b.*")) {
+                wordStates[i] = 2;
+                changed = true;
+            }
+        }
+        if (changed) {
+            renderReadingBoardSpannable();
+        }
+    }
+
     private void setupReadingData() {
         if (fullReadingText == null || fullReadingText.trim().isEmpty()) {
             rawWords = new String[0];
@@ -740,6 +849,9 @@ public class NativeLiveActivity extends Activity {
 
     private void resetReadingBoard() {
         spokenTokenHistory.clear();
+        readingCoachNotes.clear();
+        lastReadingCoachNote = "";
+        renderReadingCoachNotes();
         if (wordStates != null) {
             for (int i = 0; i < wordStates.length; i++) {
                 wordStates[i] = 0;
@@ -871,14 +983,9 @@ public class NativeLiveActivity extends Activity {
             }
         }
 
-        // Pass 2: Only mark words skipped BEFORE lastMatchedRefIdx as 2 (deviated/skipped)
-        if (lastMatchedRefIdx > 0) {
-            for (int refIdx = 0; refIdx < lastMatchedRefIdx; refIdx++) {
-                if (wordStates[refIdx] == 0) {
-                    wordStates[refIdx] = 2; // Skipped / Mispronounced
-                }
-            }
-        }
+        // ASR alignment is used only to track reading progress.
+        // An unmatched transcript token is NOT reliable evidence of bad pronunciation.
+        // State 2 is reserved for explicit teacher pronunciation feedback.
 
         renderReadingBoardSpannable();
         updateReadingHud();
@@ -1372,6 +1479,9 @@ public class NativeLiveActivity extends Activity {
                             @Override public void run() {
                                 if (isShadowingMode && "user".equalsIgnoreCase(role)) {
                                     processSpokenTextForShadowing(text);
+                                } else if (isShadowingMode && ("assistant".equalsIgnoreCase(role)
+                                        || "model".equalsIgnoreCase(role))) {
+                                    appendReadingCoachNote(text);
                                 } else if (!isShadowingMode) {
                                     appendLiveTranscript(text, role);
                                 }

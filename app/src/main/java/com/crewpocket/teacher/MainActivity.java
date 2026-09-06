@@ -152,8 +152,8 @@ public class MainActivity extends Activity {
         if (bottomNav == null) return;
         bottomNav.removeAllViews();
 
-        bottomNav.addView(buildTabItem("🎓", en ? "Practice Hub" : "對話教室", 0, currentMainTab == 0));
-        bottomNav.addView(buildTabItem("⚙️", en ? "Preferences" : "偏好設定", 1, currentMainTab == 1));
+        bottomNav.addView(buildTabItem("●", en ? "Practice" : "練習", 0, currentMainTab == 0));
+        bottomNav.addView(buildTabItem("⚙", en ? "Settings" : "設定", 1, currentMainTab == 1));
     }
 
     private LinearLayout buildTabItem(String icon, String label, final int tabIndex, boolean active) {
@@ -211,272 +211,242 @@ public class MainActivity extends Activity {
     // 🌟 TAB 0: 對話教練 / Practice Hub
     // ══════════════════════════════════════════════════════════════════════════
     private void renderPracticePage(final boolean en) {
-        // 1. Top Header Row
+        // Product principle: launch practice in two taps; move diagnostics and tooling below the fold.
         LinearLayout headerRow = new LinearLayout(this);
         headerRow.setOrientation(LinearLayout.HORIZONTAL);
         headerRow.setGravity(Gravity.CENTER_VERTICAL);
-        headerRow.setPadding(0, 0, 0, dp(4));
-
-        TextView brandIcon = new TextView(this);
-        brandIcon.setText("🎓");
-        brandIcon.setTextSize(26);
-        brandIcon.setPadding(0, 0, dp(10), 0);
-        headerRow.addView(brandIcon);
+        headerRow.setPadding(0, 0, 0, dp(8));
 
         LinearLayout brandTextCol = new LinearLayout(this);
         brandTextCol.setOrientation(LinearLayout.VERTICAL);
 
         TextView title = new TextView(this);
-        title.setText("Crew Teacher");
-        title.setTextSize(20);
+        title.setText(en ? "What do you want to practice?" : "今天想練什麼？");
+        title.setTextSize(24);
         title.setTextColor(CrewTheme.TEXT_PRIMARY);
         title.setTypeface(Typeface.create("sans-serif-medium", Typeface.BOLD));
         brandTextCol.addView(title);
 
         TextView subtitle = new TextView(this);
-        subtitle.setText(en ? "AI 1-on-1 Oral Language Tutor" : "隨身 AI 外語口說教練 · 沉浸對話");
-        subtitle.setTextSize(11);
+        subtitle.setText(en ? "Start speaking first. Configure later." : "先開口，再調整。兩步內開始練習。 ");
+        subtitle.setTextSize(12);
         subtitle.setTextColor(CrewTheme.TEXT_SECONDARY);
+        subtitle.setPadding(0, dp(3), 0, 0);
         brandTextCol.addView(subtitle);
-
         headerRow.addView(brandTextCol, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
 
-        // Top Right Menu Dropdown Button (replacing cramped buttons)
         final boolean bubbleActive = NativeLiveService.isActive() || FloatingBubbleManager.getInstance(this).isBubbleShowing();
-        
-        LinearLayout menuBtnContainer = new LinearLayout(this);
-        menuBtnContainer.setOrientation(LinearLayout.HORIZONTAL);
-        menuBtnContainer.setGravity(Gravity.CENTER_VERTICAL);
-
-        if (bubbleActive) {
-            TextView activeBadge = new TextView(this);
-            activeBadge.setText("🫧");
-            activeBadge.setTextSize(14);
-            activeBadge.setPadding(0, 0, dp(6), 0);
-            menuBtnContainer.addView(activeBadge);
-        }
-
         final TextView menuBtn = new TextView(this);
         menuBtn.setText("⋮");
         menuBtn.setTextSize(22);
-        menuBtn.setTextColor(Color.parseColor("#E2E8F0"));
+        menuBtn.setTextColor(Color.parseColor("#CBD5E1"));
         menuBtn.setGravity(Gravity.CENTER);
-        menuBtn.setPadding(0, 0, 0, 0);
-        GradientDrawable mbBg = new GradientDrawable();
-        mbBg.setColor(Color.parseColor("#1E293B"));
-        mbBg.setCornerRadius(dp(12));
-        mbBg.setStroke(dp(1), Color.parseColor("#334155"));
-        menuBtn.setBackground(mbBg);
+        GradientDrawable menuBg = new GradientDrawable();
+        menuBg.setColor(Color.parseColor("#111827"));
+        menuBg.setCornerRadius(dp(12));
+        menuBg.setStroke(dp(1), Color.parseColor("#263244"));
+        menuBtn.setBackground(menuBg);
         menuBtn.setOnClickListener(new View.OnClickListener() {
-            @Override public void onClick(View v) {
-                showTopHeaderMenu(v);
-            }
+            @Override public void onClick(View v) { showTopHeaderMenu(v); }
         });
-        menuBtnContainer.addView(menuBtn, new LinearLayout.LayoutParams(dp(38), dp(36)));
-        headerRow.addView(menuBtnContainer);
+        headerRow.addView(menuBtn, new LinearLayout.LayoutParams(dp(40), dp(40)));
         pageContent.addView(headerRow);
 
-        // 2. Status Card Banner
+        // Error-only setup banner. Healthy connection state stays out of the user's way.
         statusCard = new LinearLayout(this);
         statusCard.setOrientation(LinearLayout.HORIZONTAL);
         statusCard.setGravity(Gravity.CENTER_VERTICAL);
-        statusCard.setPadding(dp(14), dp(10), dp(14), dp(10));
-        LinearLayout.LayoutParams statusCardLp = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        statusCardLp.setMargins(0, dp(12), 0, dp(12));
-        statusCard.setLayoutParams(statusCardLp);
-
+        statusCard.setPadding(dp(14), dp(11), dp(14), dp(11));
         statusDot = new TextView(this);
         statusDot.setText("●");
-        statusDot.setTextSize(13);
+        statusDot.setTextSize(12);
         statusDot.setPadding(0, 0, dp(8), 0);
         statusCard.addView(statusDot);
-
-        LinearLayout statusTextCol = new LinearLayout(this);
-        statusTextCol.setOrientation(LinearLayout.VERTICAL);
-
+        LinearLayout statusCol = new LinearLayout(this);
+        statusCol.setOrientation(LinearLayout.VERTICAL);
         statusText = new TextView(this);
         statusText.setTextSize(12);
         statusText.setTypeface(Typeface.DEFAULT_BOLD);
-        statusTextCol.addView(statusText);
-
+        statusCol.addView(statusText);
         statusDetail = new TextView(this);
         statusDetail.setTextSize(10);
-        statusTextCol.addView(statusDetail);
+        statusCol.addView(statusDetail);
+        statusCard.addView(statusCol, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        if (AppConfig.getGeminiApiKey(this).isEmpty()) {
+            LinearLayout.LayoutParams errorLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            errorLp.setMargins(0, dp(8), 0, dp(14));
+            statusCard.setLayoutParams(errorLp);
+            pageContent.addView(statusCard);
+        }
+        refreshStatus();
 
-        statusCard.addView(statusTextCol, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-        pageContent.addView(statusCard);
+        // Primary action: free conversation.
+        LinearLayout hero = new LinearLayout(this);
+        hero.setOrientation(LinearLayout.VERTICAL);
+        hero.setPadding(dp(18), dp(17), dp(18), dp(17));
+        GradientDrawable heroBg = new GradientDrawable();
+        heroBg.setColor(Color.parseColor("#172554"));
+        heroBg.setCornerRadius(dp(20));
+        heroBg.setStroke(dp(1), Color.parseColor("#3B82F6"));
+        hero.setBackground(heroBg);
+        LinearLayout.LayoutParams heroLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        heroLp.setMargins(0, dp(6), 0, dp(12));
+        hero.setLayoutParams(heroLp);
 
-        // 2.5 Streak & Progress Card
+        TextView heroEyebrow = new TextView(this);
+        heroEyebrow.setText(en ? "QUICK START" : "快速開始");
+        heroEyebrow.setTextSize(10);
+        heroEyebrow.setTextColor(Color.parseColor("#93C5FD"));
+        heroEyebrow.setTypeface(Typeface.DEFAULT_BOLD);
+        hero.addView(heroEyebrow);
+
+        TextView heroTitle = new TextView(this);
+        heroTitle.setText(en ? "Free conversation" : "自由對話");
+        heroTitle.setTextSize(20);
+        heroTitle.setTextColor(Color.WHITE);
+        heroTitle.setTypeface(Typeface.DEFAULT_BOLD);
+        heroTitle.setPadding(0, dp(5), 0, dp(3));
+        hero.addView(heroTitle);
+
+        TextView heroBody = new TextView(this);
+        heroBody.setText(en ? "Talk naturally with your AI tutor. Hints stay available when you need them." : "直接和 AI 老師開聊，需要時再叫出提詞，不先塞滿設定。 ");
+        heroBody.setTextSize(12);
+        heroBody.setTextColor(Color.parseColor("#CBD5E1"));
+        hero.addView(heroBody);
+
+        Button heroButton = new Button(this);
+        heroButton.setText(en ? "Start speaking  →" : "開始說話  →");
+        heroButton.setTextSize(14);
+        heroButton.setTextColor(Color.WHITE);
+        heroButton.setTypeface(Typeface.DEFAULT_BOLD);
+        GradientDrawable heroButtonBg = new GradientDrawable();
+        heroButtonBg.setColor(Color.parseColor("#2563EB"));
+        heroButtonBg.setCornerRadius(dp(12));
+        heroButton.setBackground(heroButtonBg);
+        LinearLayout.LayoutParams heroButtonLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(46));
+        heroButtonLp.setMargins(0, dp(14), 0, 0);
+        heroButton.setLayoutParams(heroButtonLp);
+        heroButton.setOnClickListener(new View.OnClickListener() {
+            @Override public void onClick(View v) {
+                if ("shadowing".equals(AppConfig.getTeachingMode(MainActivity.this))) {
+                    AppConfig.setTeachingMode(MainActivity.this, "bilingual");
+                }
+                startActivity(new Intent(MainActivity.this, NativeLiveActivity.class));
+            }
+        });
+        hero.addView(heroButton);
+        pageContent.addView(hero);
+
+        TextView activityHeading = new TextView(this);
+        activityHeading.setText(en ? "Choose an activity" : "選一種練習");
+        activityHeading.setTextSize(13);
+        activityHeading.setTextColor(Color.parseColor("#94A3B8"));
+        activityHeading.setTypeface(Typeface.DEFAULT_BOLD);
+        activityHeading.setPadding(0, dp(4), 0, dp(8));
+        pageContent.addView(activityHeading);
+
+        LinearLayout activityRow = new LinearLayout(this);
+        activityRow.setOrientation(LinearLayout.HORIZONTAL);
+
+        LinearLayout lessonPod = makePodItem("◎", en ? "Lesson" : "情境課程", en ? "Guided missions" : "任務式角色扮演", Color.parseColor("#60A5FA"), new View.OnClickListener() {
+            @Override public void onClick(View v) { CourseMapDialog.show(MainActivity.this, null); }
+        });
+        activityRow.addView(lessonPod, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+
+        LinearLayout readingPod = makePodItem("Aa", en ? "Pronunciation" : "朗讀糾音", en ? "Read · diagnose · retry" : "朗讀 · 診斷 · 重練", Color.parseColor("#A78BFA"), new View.OnClickListener() {
+            @Override public void onClick(View v) {
+                AppConfig.setTeachingMode(MainActivity.this, "shadowing");
+                startActivity(new Intent(MainActivity.this, NativeLiveActivity.class));
+            }
+        });
+        LinearLayout.LayoutParams readingLp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+        readingLp.setMargins(dp(10), 0, 0, 0);
+        activityRow.addView(readingPod, readingLp);
+        pageContent.addView(activityRow);
+
+        // Scenario becomes a lightweight activity selector instead of a system "mode".
+        String persona = AppConfig.getTutorPersona(this);
+        LinearLayout.LayoutParams scenarioLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        scenarioLp.setMargins(0, dp(10), 0, dp(10));
+        LinearLayout scenarioCard = makeActionCard("◌", en ? "Conversation scenario" : "對話情境",
+                getPersonaLabel(persona, en) + (en ? " · Tap to change" : " · 點一下切換"),
+                Color.parseColor("#38BDF8"), new View.OnClickListener() {
+            @Override public void onClick(View v) { showPersonaDialog(); }
+        });
+        scenarioCard.setLayoutParams(scenarioLp);
+        pageContent.addView(scenarioCard);
+
+        // Compact progress: useful, but secondary to speaking.
         LearningDataManager.StreakInfo streak = LearningDataManager.getStreakInfo(this);
-        LinearLayout streakCard = new LinearLayout(this);
-        streakCard.setOrientation(LinearLayout.VERTICAL);
-        streakCard.setPadding(dp(14), dp(12), dp(14), dp(12));
-        GradientDrawable skBg = new GradientDrawable();
-        skBg.setColors(new int[]{Color.parseColor("#1E1B4B"), Color.parseColor("#0F172A")});
-        skBg.setOrientation(GradientDrawable.Orientation.TL_BR);
-        skBg.setCornerRadius(dp(16));
-        skBg.setStroke(dp(1), Color.parseColor("#4338CA"));
-        streakCard.setBackground(skBg);
-        LinearLayout.LayoutParams skLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        skLp.setMargins(0, 0, 0, dp(14));
-        streakCard.setLayoutParams(skLp);
-
-        LinearLayout skTopRow = new LinearLayout(this);
-        skTopRow.setOrientation(LinearLayout.HORIZONTAL);
-        skTopRow.setGravity(Gravity.CENTER_VERTICAL);
-
-        TextView streakBadge = new TextView(this);
-        streakBadge.setText(streak.streakDays > 0
-                ? ("🔥 " + (en ? "Streak: " : "連續打卡 ") + streak.streakDays + (en ? " Days" : " 天"))
-                : ("🔥 " + (en ? "Start Your Streak Today!" : "今日開口，啟動連續打卡！")));
-        streakBadge.setTextSize(13);
-        streakBadge.setTextColor(Color.parseColor("#F59E0B"));
-        streakBadge.setTypeface(Typeface.DEFAULT_BOLD);
-        skTopRow.addView(streakBadge, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-
-        TextView timeBadge = new TextView(this);
-        timeBadge.setText("⏱️ " + streak.formattedTodayTime);
-        timeBadge.setTextSize(11);
-        timeBadge.setTextColor(Color.parseColor("#A5B4FC"));
-        skTopRow.addView(timeBadge);
-        streakCard.addView(skTopRow);
-
         int goalMin = LearningDataManager.getDailyGoalMinutes(this);
-        int todaySec = streak.todayPracticeSeconds;
-        int pct = Math.min(100, Math.round((todaySec * 100.0f) / (goalMin * 60.0f)));
+        int todayMin = streak.todayPracticeSeconds / 60;
+        int pct = Math.min(100, Math.round((streak.todayPracticeSeconds * 100.0f) / Math.max(60.0f, goalMin * 60.0f)));
+
+        LinearLayout progressCard = new LinearLayout(this);
+        progressCard.setOrientation(LinearLayout.VERTICAL);
+        progressCard.setPadding(dp(15), dp(13), dp(15), dp(13));
+        GradientDrawable progressBg = new GradientDrawable();
+        progressBg.setColor(Color.parseColor("#111827"));
+        progressBg.setCornerRadius(dp(16));
+        progressBg.setStroke(dp(1), Color.parseColor("#263244"));
+        progressCard.setBackground(progressBg);
+        LinearLayout.LayoutParams progressLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        progressLp.setMargins(0, 0, 0, dp(12));
+        progressCard.setLayoutParams(progressLp);
+
+        LinearLayout progressTop = new LinearLayout(this);
+        progressTop.setOrientation(LinearLayout.HORIZONTAL);
+        progressTop.setGravity(Gravity.CENTER_VERTICAL);
+        TextView today = new TextView(this);
+        today.setText(en ? "Today" : "今天");
+        today.setTextSize(12);
+        today.setTextColor(Color.WHITE);
+        today.setTypeface(Typeface.DEFAULT_BOLD);
+        progressTop.addView(today, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        TextView streakTv = new TextView(this);
+        streakTv.setText((streak.streakDays > 0 ? "🔥 " + streak.streakDays : "○") + (en ? " day streak" : " 天連續"));
+        streakTv.setTextSize(11);
+        streakTv.setTextColor(Color.parseColor("#94A3B8"));
+        progressTop.addView(streakTv);
+        progressCard.addView(progressTop);
 
         TextView goalTv = new TextView(this);
-        goalTv.setText((en ? "Daily Goal: " : "每日目標：") + (todaySec / 60) + " / " + goalMin + (en ? " mins (" : " 分鐘 (") + pct + "%)");
+        goalTv.setText(todayMin + " / " + goalMin + (en ? " min · " : " 分鐘 · ") + pct + "%");
         goalTv.setTextSize(11);
         goalTv.setTextColor(Color.parseColor("#94A3B8"));
-        goalTv.setPadding(0, dp(6), 0, dp(4));
-        streakCard.addView(goalTv);
+        goalTv.setPadding(0, dp(7), 0, dp(6));
+        progressCard.addView(goalTv);
 
-        // Progress Track
         LinearLayout track = new LinearLayout(this);
-        track.setOrientation(LinearLayout.HORIZONTAL);
-        GradientDrawable trBg = new GradientDrawable();
-        trBg.setColor(Color.parseColor("#1E293B"));
-        trBg.setCornerRadius(dp(4));
-        track.setBackground(trBg);
-        LinearLayout.LayoutParams trLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(6));
-        track.setLayoutParams(trLp);
-
+        GradientDrawable trackBg = new GradientDrawable();
+        trackBg.setColor(Color.parseColor("#253047"));
+        trackBg.setCornerRadius(dp(4));
+        track.setBackground(trackBg);
+        LinearLayout.LayoutParams trackLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(6));
+        track.setLayoutParams(trackLp);
         View fill = new View(this);
-        GradientDrawable fBg = new GradientDrawable();
-        fBg.setColor(Color.parseColor("#38BDF8"));
-        fBg.setCornerRadius(dp(4));
-        fill.setBackground(fBg);
+        GradientDrawable fillBg = new GradientDrawable();
+        fillBg.setColor(Color.parseColor("#3B82F6"));
+        fillBg.setCornerRadius(dp(4));
+        fill.setBackground(fillBg);
         float weight = Math.max(0.01f, Math.min(1.0f, pct / 100.0f));
         track.addView(fill, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, weight));
         track.addView(new View(this), new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1.0f - weight));
-        streakCard.addView(track);
-        pageContent.addView(streakCard);
+        progressCard.addView(track);
+        pageContent.addView(progressCard);
 
-        // 3. Main Action: Start Practice Button
-        Button startBtn = new Button(this);
-        String teachingMode = AppConfig.getTeachingMode(this);
-        boolean isShadowing = "shadowing".equals(teachingMode);
-        startBtn.setText(isShadowing
-                ? (en ? "📖 Start Reading & Pronunciation Lab" : "📖 開始朗讀高亮與糾音實驗室")
-                : (en ? "🎙️ Start 1-on-1 Oral Practice" : "🎙️ 開始 1-on-1 即時外語對話"));
-        startBtn.setTextSize(15);
-        startBtn.setTextColor(Color.WHITE);
-        startBtn.setTypeface(Typeface.DEFAULT_BOLD);
-        GradientDrawable sbBg = new GradientDrawable();
-        sbBg.setColors(isShadowing
-                ? new int[]{Color.parseColor("#7C3AED"), Color.parseColor("#4F46E5")}
-                : new int[]{Color.parseColor("#2563EB"), Color.parseColor("#1D4ED8")});
-        sbBg.setOrientation(GradientDrawable.Orientation.LEFT_RIGHT);
-        sbBg.setCornerRadius(dp(14));
-        startBtn.setBackground(sbBg);
-        LinearLayout.LayoutParams sbLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(48));
-        sbLp.setMargins(0, 0, 0, dp(12));
-        startBtn.setLayoutParams(sbLp);
-        startBtn.setOnClickListener(new View.OnClickListener() {
-            @Override public void onClick(View v) {
-                Intent intent = new Intent(MainActivity.this, NativeLiveActivity.class);
-                startActivity(intent);
-            }
-        });
-        pageContent.addView(startBtn);
-
-        // 3.5 Floating Bubble Quick Launcher Card on Home Page
-        boolean hasOverlayPerm = FloatingBubbleManager.getInstance(this).canDrawOverlays();
-        String bubbleStatus = bubbleActive ? (en ? "🟢 Floating Bubble Active · Tap to stop" : "🟢 桌面懸浮泡泡運行中 · 點擊關閉")
-                : (hasOverlayPerm ? (en ? "🫧 Tap to launch desktop floating bubble tutor" : "🫧 點擊開啟桌面懸浮球助教 (跨 App 練習)")
-                : (en ? "⚠️ Tap to grant overlay permission" : "⚠️ 需開啟懸浮視窗權限 · 點擊開啟"));
-        pageContent.addView(makeActionCard("🫧", en ? "Desktop Floating Bubble" : "桌面懸浮球助教", bubbleStatus, bubbleActive ? Color.parseColor("#38BDF8") : CrewTheme.CYAN_400, new View.OnClickListener() {
-            @Override public void onClick(View v) { toggleFloatingBubbleService(); }
-        }));
-
-        // 4. Quick Mode & Scenario Grid
-        TextView modeHeading = new TextView(this);
-        modeHeading.setText(en ? "🎯 Practice Modes & Scenarios" : "🎯 練習模式與情境");
-        modeHeading.setTextSize(12);
-        modeHeading.setTextColor(Color.parseColor("#64748B"));
-        modeHeading.setTypeface(Typeface.DEFAULT_BOLD);
-        modeHeading.setPadding(0, dp(4), 0, dp(8));
-        pageContent.addView(modeHeading);
-
-        LinearLayout grid1 = new LinearLayout(this);
-        grid1.setOrientation(LinearLayout.HORIZONTAL);
-        LinearLayout.LayoutParams gLp1 = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        gLp1.setMargins(0, 0, 0, dp(10));
-        grid1.setLayoutParams(gLp1);
-
-        // Structured Mission Map
-        LinearLayout pod1 = makePodItem("🎯", en ? "Lesson Missions" : "闖關模式", en ? "Structured" : "循序漸進", CrewTheme.CYAN_400, new View.OnClickListener() {
-            @Override public void onClick(View v) {
-                CourseMapDialog.show(MainActivity.this, null);
-            }
-        });
-        grid1.addView(pod1, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-
-        // Free Scenario Switcher
-        String persona = AppConfig.getTutorPersona(this);
-        LinearLayout pod2 = makePodItem("🎭", en ? "Scenario" : "情境劇本", getPersonaLabel(persona, en), CrewTheme.AMBER_400, new View.OnClickListener() {
-            @Override public void onClick(View v) { showPersonaDialog(); }
-        });
-        LinearLayout.LayoutParams p2Lp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
-        p2Lp.setMargins(dp(8), 0, dp(8), 0);
-        grid1.addView(pod2, p2Lp);
-
-        // Floating Bubble Pod
-        boolean isBubbleActive = NativeLiveService.isActive();
-        LinearLayout pod3 = makePodItem("🫧", en ? "Floating Bubble" : "懸浮助教",
-                isBubbleActive ? (en ? "Active" : "運行中") : (en ? "Launch" : "啟動"),
-                Color.parseColor("#38BDF8"), new View.OnClickListener() {
-            @Override public void onClick(View v) { toggleFloatingBubbleService(); }
-        });
-        grid1.addView(pod3, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-        pageContent.addView(grid1);
-
-        // 5. Study Tools Row: Starred Phrasebook & Session History
         TextView toolsHeading = new TextView(this);
-        toolsHeading.setText(en ? "📚 Notebook & Diagnostics" : "📚 生詞本與學習診斷");
-        toolsHeading.setTextSize(12);
-        toolsHeading.setTextColor(Color.parseColor("#64748B"));
+        toolsHeading.setText(en ? "Review" : "複習");
+        toolsHeading.setTextSize(13);
+        toolsHeading.setTextColor(Color.parseColor("#94A3B8"));
         toolsHeading.setTypeface(Typeface.DEFAULT_BOLD);
-        toolsHeading.setPadding(0, dp(6), 0, dp(8));
+        toolsHeading.setPadding(0, dp(2), 0, dp(8));
         pageContent.addView(toolsHeading);
 
-        int starredCount = LearningDataManager.getStarredItems(this).size();
-        pageContent.addView(makeActionCard("⭐", en ? "My Starred Phrasebook" : "⭐ 我的個人生詞與金句本",
-                (starredCount > 0 ? ((en ? "Saved " : "已收藏 ") + starredCount + (en ? " phrases · Tap to drill & quiz" : " 條精選生詞金句 · 點擊跟讀與翻卡")) : (en ? "No saved phrases yet" : "尚無收藏 · 對話中點擊 ★ 隨時加入")),
-                Color.parseColor("#FBBF24"), new View.OnClickListener() {
-            @Override public void onClick(View v) {
-                PhrasebookDialog.show(MainActivity.this, new Runnable() {
-                    @Override public void run() { renderCurrentPage(); }
-                });
-            }
-        }));
-
         int sessionCount = LearningDataManager.getSessionHistory(this).size();
-        pageContent.addView(makeActionCard("📊", en ? "Session History & Diagnostics" : "📊 歷史對話與成效報告",
-                (sessionCount > 0 ? ((en ? "Total " : "累計 ") + sessionCount + (en ? " tutoring sessions recorded" : " 次對話課堂記錄")) : (en ? "No sessions yet" : "尚無記錄 · 完成練習自動生成")) + (en ? " · Tap to review" : " · 點擊查看診斷"),
-                Color.parseColor("#38BDF8"), new View.OnClickListener() {
+        pageContent.addView(makeActionCard("↗", en ? "Session reports" : "練習報告",
+                sessionCount > 0 ? ((en ? "Review " : "查看 ") + sessionCount + (en ? " sessions and feedback" : " 次對話與改善建議")) : (en ? "Your feedback appears here after practice" : "完成練習後，回饋會集中在這裡"),
+                Color.parseColor("#60A5FA"), new View.OnClickListener() {
             @Override public void onClick(View v) {
                 SessionHistoryDialog.show(MainActivity.this, new SessionHistoryDialog.ReportViewListener() {
                     @Override public void onOpenReport(LearningDataManager.SessionRecord record) {
@@ -486,25 +456,26 @@ public class MainActivity extends Activity {
             }
         }));
 
-        // AI Onboarding & Advisor Quick Access Card
-        pageContent.addView(makeActionCard("🧭", en ? "AI Onboarding & Learning Advisor" : "🧭 專屬學習顧問 · 新手領航課",
-                en ? "Meet your personal guide tutor for a 2-min interactive tour!" : "初次體驗或想重新引導？點擊進入 2 分鐘 AI 導師語音破冰與導覽",
-                Color.parseColor("#A855F7"), new View.OnClickListener() {
+        int starredCount = LearningDataManager.getStarredItems(this).size();
+        pageContent.addView(makeActionCard("★", en ? "Saved phrases" : "收藏片語",
+                starredCount > 0 ? ((en ? "Saved " : "已收藏 ") + starredCount + (en ? " phrases" : " 條片語")) : (en ? "Save useful phrases during a session" : "對話中收藏值得重練的句子"),
+                Color.parseColor("#F59E0B"), new View.OnClickListener() {
             @Override public void onClick(View v) {
-                if (AppConfig.getGeminiApiKey(MainActivity.this).isEmpty()) {
-                    WelcomeGuideDialog.show(MainActivity.this, new Runnable() {
-                        @Override public void run() { renderCurrentPage(); }
-                    });
-                } else {
-                    Intent intent = new Intent(MainActivity.this, NativeLiveActivity.class);
-                    intent.putExtra("EXTRA_ONBOARDING_MODE", true);
-                    intent.putExtra("EXTRA_TUTOR_PERSONA", "guide");
-                    startActivity(intent);
-                }
+                PhrasebookDialog.show(MainActivity.this, new Runnable() {
+                    @Override public void run() { renderCurrentPage(); }
+                });
             }
         }));
 
-        refreshStatus();
+        // Floating bubble is an accessory feature, not a headline feature.
+        boolean hasOverlayPerm = FloatingBubbleManager.getInstance(this).canDrawOverlays();
+        pageContent.addView(makeActionCard("◉", en ? "Floating tutor" : "懸浮助教",
+                bubbleActive ? (en ? "Active · Tap to stop" : "運行中 · 點擊關閉")
+                        : (hasOverlayPerm ? (en ? "Practice across other apps" : "跨 App 隨時叫出助教")
+                        : (en ? "Overlay permission required" : "需要懸浮視窗權限")),
+                Color.parseColor("#64748B"), new View.OnClickListener() {
+            @Override public void onClick(View v) { toggleFloatingBubbleService(); }
+        }));
     }
 
     // ══════════════════════════════════════════════════════════════════════════
